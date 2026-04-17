@@ -125,6 +125,14 @@ export interface Database {
         notes: string | null;
         created_at: string;
       }>;
+      bot_rules: TableRow<{
+        id: string;
+        tenant_id: string;
+        rule_text: string;
+        category: "tone" | "boundary" | "behavior";
+        enabled: boolean;
+        created_at: string;
+      }>;
       bot_flows: TableRow<{
         id: string;
         tenant_id: string;
@@ -132,6 +140,56 @@ export interface Database {
         config: Json;
         enabled: boolean;
         created_at: string;
+      }>;
+      bot_flow_phases: TableRow<{
+        id: string;
+        tenant_id: string;
+        name: string;
+        order_index: number;
+        max_messages: number;
+        system_prompt: string;
+        tone: string | null;
+        goals: string | null;
+        transition_hint: string | null;
+        action_button_ids: string[] | null;
+        created_at: string;
+      }>;
+      knowledge_docs: TableRow<{
+        id: string;
+        tenant_id: string;
+        title: string;
+        type: "pdf" | "docx" | "xlsx" | "faq" | "richtext" | "product";
+        content: string | null;
+        file_url: string | null;
+        status: "processing" | "ready" | "error";
+        metadata: Record<string, unknown>;
+        created_at: string;
+      }>;
+      knowledge_chunks: TableRow<{
+        id: string;
+        doc_id: string;
+        tenant_id: string;
+        content: string;
+        kb_type: "general" | "product";
+        embedding: number[] | null;
+        metadata: Record<string, unknown>;
+        created_at: string;
+      }>;
+      knowledge_images: TableRow<{
+        id: string;
+        tenant_id: string;
+        url: string;
+        description: string;
+        tags: string[];
+        context_hint: string | null;
+        created_at: string;
+      }>;
+      conversation_phases: TableRow<{
+        id: string;
+        conversation_id: string;
+        phase_id: string;
+        entered_at: string;
+        message_count: number;
       }>;
       workflows: TableRow<{
         id: string;
