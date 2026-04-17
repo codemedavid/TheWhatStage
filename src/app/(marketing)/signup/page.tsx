@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { needsEmailConfirmation } from "@/lib/auth/helpers";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -12,52 +11,41 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [checkEmail, setCheckEmail] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const supabase = createClient();
-    const result = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+    // 1. Create user via server-side API (auto-confirms email)
+    const signupRes = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
     });
 
-    if (result.error) {
-      setError(result.error.message);
+    if (!signupRes.ok) {
+      const data = await signupRes.json();
+      setError(data.error ?? "Failed to create account");
       setLoading(false);
       return;
     }
 
-    if (needsEmailConfirmation(result)) {
-      setCheckEmail(true);
+    // 2. Sign in to establish session
+    const supabase = createClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInError) {
+      setError(signInError.message);
       setLoading(false);
       return;
     }
 
-    // Auto-confirm enabled — session is active, go to onboarding
+    // 3. Session active — go to onboarding
     router.push("/onboarding");
-  }
-
-  if (checkEmail) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          <h1 className="text-2xl font-bold mb-4">Check your email</h1>
-          <p className="text-gray-600 mb-6">
-            We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
-          </p>
-          <Link href="/login" className="text-indigo-600 hover:underline">
-            Back to sign in
-          </Link>
-        </div>
-      </main>
-    );
   }
 
   return (
