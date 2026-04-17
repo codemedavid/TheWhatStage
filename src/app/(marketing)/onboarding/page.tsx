@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { generateSlug, validateSlug } from "@/lib/utils/slug";
+import { buildTenantUrl } from "@/lib/auth/redirect";
 
 const BUSINESS_TYPES = [
   { value: "ecommerce", label: "E-Commerce", icon: "🛒" },
@@ -16,12 +17,6 @@ const BOT_GOALS = [
   { value: "understand_intent", label: "Understand Intent" },
   { value: "collect_lead_info", label: "Collect Lead Info" },
 ] as const;
-
-function buildTenantUrl(slug: string): string {
-  const domain = process.env.NEXT_PUBLIC_APP_DOMAIN ?? "lvh.me:3000";
-  const protocol = domain.includes("localhost") || domain.includes("lvh.me") ? "http" : "https";
-  return `${protocol}://${slug}.${domain}/app/leads`;
-}
 
 export default function OnboardingPage() {
   const [step, setStep] = useState<"business" | "goal" | "slug">("business");
