@@ -17,6 +17,7 @@ vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
     rpc: mockRpc,
     from: mockFrom,
+    auth: { admin: { updateUserById: vi.fn().mockResolvedValue({ error: null }) } },
   })),
 }));
 
@@ -35,6 +36,7 @@ const validBody = {
   slug: "acme-corp",
   businessType: "ecommerce",
   botGoal: "qualify_leads",
+  firstName: "John",
 };
 
 describe("POST /api/onboarding/create-tenant", () => {
@@ -93,14 +95,22 @@ describe("POST /api/onboarding/create-tenant", () => {
       data: { user: { id: "user-1" } },
       error: null,
     });
-    mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "tenant_members") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
           }),
-        }),
-      }),
+        };
+      }
+      // bot_rules, bot_flows, action_pages — all need insert
+      return {
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      };
     });
     mockRpc.mockResolvedValue({
       data: { id: "tenant-1", slug: "acme-corp" },
