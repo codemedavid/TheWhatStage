@@ -1,0 +1,229 @@
+{
+  "main": {
+    "id": "7864da2d45f6cd0a",
+    "type": "split",
+    "children": [
+      {
+        "id": "c8caafb3adc602d2",
+        "type": "tabs",
+        "dimension": 18.236301369863014,
+        "children": [
+          {
+            "id": "39d0dfc4ca7f18b0",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "New tab"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cb449307d0b48cc8",
+        "type": "tabs",
+        "dimension": 81.76369863013699,
+        "children": [
+          {
+            "id": "268ff215196a428b",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "a01e0575ba9286f8",
+    "type": "split",
+    "children": [
+      {
+        "id": "9c5f4547914dbb7a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "9e2b1a7b8430c524",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "dad1c98c8fde8015",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "17d7046e377cb299",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "e01c7a42e54dd916",
+    "type": "split",
+    "children": [
+      {
+        "id": "a1f94f6aea281807",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a02b45ad457719a1",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Welcome.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Welcome"
+            }
+          },
+          {
+            "id": "5b3a4553b6832ea9",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Welcome.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Welcome"
+            }
+          },
+          {
+            "id": "80ece5fe84efec65",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "3be5251d73de652c",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "df312fe96ff3a678",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Welcome.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Welcome"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "268ff215196a428b",
+  "lastOpenFiles": [
+    "Index/Component Registry.md",
+    "Components/MarketingLayout.md",
+    "Index/Feature Roadmap.md",
+    "Index/Database Schema Map.md",
+    "Entities/conversations.md",
+    "Index/System Overview.md",
+    "Entities/stages.md",
+    "Flows/Conversation Review Flow.md",
+    "Entities/tenants.md",
+    "Flows/RAG Knowledge Retrieval Flow.md",
+    "Components/CreateTenantRoute.md",
+    "Flows/Action Page Submission Flow.md",
+    "Flows/Workflow Execution Flow.md",
+    "Flows/Bot Conversation Flow.md",
+    "Flows/Tenant Onboarding Flow.md",
+    "Flows/Messenger Webhook Flow.md",
+    "Flows/Product Purchase Flow.md",
+    "Flows/Appointment Booking Flow.md",
+    "Flows/Lead Qualification Flow.md",
+    "Features/Action Conditions.md",
+    "Features/Sales Push.md",
+    "Features/Booking Integration.md",
+    "Features/Qualification Data View.md",
+    "Features/Qualification Engine.md",
+    "Features/Goal Configuration.md",
+    "Features/Training Dashboard.md"
+  ]
+}
