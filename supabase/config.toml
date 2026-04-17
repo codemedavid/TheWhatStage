@@ -1,0 +1,17 @@
+[project]
+id = "whatstage-local"
+
+[api]
+port = 54321
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://*.lvh.me:3000/**"]
+enable_signup = true
+enable_confirmations = false
+
+[auth.email]
+enable_confirmations = false
+
+[studio]
+port = 54323
