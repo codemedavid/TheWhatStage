@@ -7,18 +7,18 @@
 
 ## Phase 1: Foundation — Embedding & Vector Store
 
-- [ ] Enable `pgvector` extension in Supabase
-- [ ] Create migration: `bot_flow_phases` table
-- [ ] Create migration: `knowledge_docs` table
-- [ ] Create migration: `knowledge_chunks` table (with vector column)
-- [ ] Create migration: `knowledge_images` table
-- [ ] Create migration: `conversation_phases` table
-- [ ] Create migration: indexes (HNSW vector index, tenant+kb_type, etc.)
-- [ ] Create migration: RLS policies for all new tables
-- [ ] Build `src/lib/ai/embedding.ts` — HuggingFace embedding client wrapper (with batch support, up to 10 chunks per call)
-- [ ] Build `src/lib/ai/vector-search.ts` — cosine similarity search utility
-- [ ] Unit tests: embedding client (mock HF API)
-- [ ] Integration tests: embed → store → query → retrieve
+- [x] Enable `pgvector` extension in Supabase
+- [x] Create migration: `bot_flow_phases` table
+- [x] Create migration: `knowledge_docs` table
+- [x] Create migration: `knowledge_chunks` table (with vector column)
+- [x] Create migration: `knowledge_images` table
+- [x] Create migration: `conversation_phases` table
+- [x] Create migration: indexes (HNSW vector index, tenant+kb_type, etc.)
+- [x] Create migration: RLS policies for all new tables
+- [x] Build `src/lib/ai/embedding.ts` — HuggingFace embedding client wrapper (with batch support, up to 10 chunks per call)
+- [x] Build `src/lib/ai/vector-search.ts` — cosine similarity search utility
+- [x] Unit tests: embedding client (mock HF API)
+- [x] Integration tests: embed → store → query → retrieve
 
 ---
 
