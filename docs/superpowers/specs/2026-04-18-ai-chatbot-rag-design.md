@@ -71,6 +71,7 @@ The **Conversation Engine** tracks which phase a lead is in, decides what to ret
 
 - **Model**: `Qwen/Qwen3-Embedding-8B` via HuggingFace Inference API (Scaleway provider)
 - **Vector dimensions**: Stored in Supabase `pgvector` column
+- **Batch embedding**: Chunks are embedded in batches of up to 10 per API call to reduce processing time for bulk uploads
 - **Two namespaces**: `knowledge_chunks.kb_type` — either `'general'` or `'product'`
 - **Image references**: Chunks with associated images store `image_urls` in the `metadata` JSONB field (URLs point to Cloudinary)
 
@@ -180,15 +181,19 @@ The response parser detects `[SEND_IMAGE:img_id]`, strips it, and sends the imag
 Upload file → Detect type → Extract text → Chunk → Embed → Store
 ```
 
-Processing is **async** — upload returns immediately, background job handles extraction/chunking/embedding. UI shows status: `uploading → processing → ready`.
+Processing is **async** using Vercel's `waitUntil()` — the upload API route returns immediately with a `processing` status, then continues extraction/chunking/embedding in the background. The UI polls a status endpoint to show: `uploading → processing → ready`. If processing fails, status is set to `error` with a message in `knowledge_docs.metadata`.
 
 ### Rich Text Editor
 
-Tiptap-based block editor: paragraphs, headings, lists, inline images, formatting. Content saved as HTML, stripped to plain text for chunking. On save, only changed sections are re-chunked/re-embedded.
+Tiptap-based block editor: paragraphs, headings, lists, inline images, formatting. Content saved as HTML, stripped to plain text for chunking. On save, the entire document is re-chunked — old chunks are deleted and new ones are created and embedded. Editor documents are small enough that full re-chunking is simpler and cheaper than diff-based partial updates.
 
 ### Product Knowledge (Separate RAG)
 
-Products serialized to natural text, embedded, stored with `kb_type='product'`. Auto re-embedded on product update.
+Products serialized to natural text, embedded, stored with `kb_type='product'`. Sync mechanism:
+
+- **On product create/update**: Application-level hook in the product CRUD API calls the embedding pipeline to upsert the corresponding `knowledge_chunks` entry
+- **On product delete**: Cascade delete via `doc_id` FK removes the chunk automatically
+- Each product gets a single `knowledge_docs` record (type=`product`) which owns its chunk
 
 ### Processing Libraries
 
@@ -216,7 +221,7 @@ Products serialized to natural text, embedded, stored with `kb_type='product'`. 
 Layer 1: Base persona — "You are a helpful assistant for [Business]. Sound like a real human."
 Layer 2: Bot rules — Tenant-defined constraints from bot_rules table
 Layer 3: Current phase — Phase instructions, tone, goals
-Layer 4: Conversation history — Last N messages
+Layer 4: Conversation history — Last 20 messages (or ~2,000 tokens, whichever is smaller)
 Layer 5: Retrieved knowledge — RAG results
 Layer 6: Available images — With descriptions and context hints
 Layer 7: Decision instructions — Output JSON: { phase_action, confidence, image_ids }
@@ -234,10 +239,13 @@ Message in → Build prompt → LLM response + decision JSON
 
 ### Agentic RAG (Smart Retrieval)
 
-1. **Query classification** — LLM classifies intent: `product_inquiry`, `general_question`, `small_talk`, `complaint`, `booking_request`
+Query classification happens **without an extra LLM call** — a lightweight keyword/embedding heuristic routes to the correct KB before the main LLM call:
+
+1. **Fast query routing** — Keyword heuristic first (e.g., "price", "cost", "how much" → Product KB; "hours", "location" → General KB). If ambiguous, query both KBs and merge results
 2. **Targeted search** — Route to correct KB based on classification
-3. **Follow-up queries** — Reformulate on low similarity scores
+3. **Follow-up queries** — If initial results have low similarity scores (< 0.3), the engine reformulates the query and searches again
 4. **No-result handling** — Ask clarifying question or escalate (never hallucinate)
+5. **Query type output** — The LLM's decision JSON includes `query_type` so future turns can refine routing
 
 ### Confidence Thresholds
 
@@ -285,7 +293,8 @@ create extension if not exists vector;
 | `type` | text | NOT NULL (`pdf`, `docx`, `xlsx`, `faq`, `richtext`, `product`) |
 | `content` | text | nullable |
 | `file_url` | text | nullable (Cloudinary URL) |
-| `status` | text | NOT NULL, default `processing` |
+| `status` | text | NOT NULL, default `processing` (`processing`, `ready`, `error`) |
+| `metadata` | jsonb | default `{}` (error messages, page count, etc.) |
 | `created_at` | timestamptz | default now() |
 
 **`knowledge_chunks`**
@@ -326,7 +335,8 @@ create extension if not exists vector;
 ### Indexes
 
 ```sql
-create index on knowledge_chunks using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+-- HNSW index — works at any scale, no training data required (unlike IVFFlat)
+create index on knowledge_chunks using hnsw (embedding vector_cosine_ops);
 create index on knowledge_chunks (tenant_id, kb_type);
 create index on conversation_phases (conversation_id);
 create index on knowledge_images (tenant_id);

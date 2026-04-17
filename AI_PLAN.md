@@ -13,9 +13,9 @@
 - [ ] Create migration: `knowledge_chunks` table (with vector column)
 - [ ] Create migration: `knowledge_images` table
 - [ ] Create migration: `conversation_phases` table
-- [ ] Create migration: indexes (IVFFlat vector index, tenant+kb_type, etc.)
+- [ ] Create migration: indexes (HNSW vector index, tenant+kb_type, etc.)
 - [ ] Create migration: RLS policies for all new tables
-- [ ] Build `src/lib/ai/embedding.ts` — HuggingFace embedding client wrapper
+- [ ] Build `src/lib/ai/embedding.ts` — HuggingFace embedding client wrapper (with batch support, up to 10 chunks per call)
 - [ ] Build `src/lib/ai/vector-search.ts` — cosine similarity search utility
 - [ ] Unit tests: embedding client (mock HF API)
 - [ ] Integration tests: embed → store → query → retrieve
@@ -31,8 +31,10 @@
 - [ ] Build `src/lib/ai/processors/faq.ts` — FAQ pair ingestion (no chunking)
 - [ ] Build `src/lib/ai/processors/product.ts` — Product-to-chunk serializer
 - [ ] Build `src/lib/ai/ingest.ts` — orchestrator: detect type → extract → chunk → embed → store
-- [ ] Build `src/app/api/knowledge/upload/route.ts` — upload API endpoint
+- [ ] Build `src/app/api/knowledge/upload/route.ts` — upload API endpoint (uses waitUntil() for async processing)
+- [ ] Build `src/app/api/knowledge/status/route.ts` — processing status polling endpoint
 - [ ] Build `src/app/api/knowledge/faq/route.ts` — FAQ CRUD endpoint
+- [ ] Build product-to-chunk sync hook in product CRUD (create/update → re-embed, delete → cascade)
 - [ ] Unit tests: each processor in isolation
 - [ ] Unit tests: chunking engine
 - [ ] Integration tests: upload PDF → chunks appear in DB with embeddings
@@ -41,12 +43,12 @@
 
 ## Phase 3: RAG Retrieval Engine
 
-- [ ] Build `src/lib/ai/classifier.ts` — query intent classifier (product_inquiry, general_question, small_talk, complaint, booking_request)
+- [ ] Build `src/lib/ai/query-router.ts` — lightweight keyword/embedding heuristic for KB routing (no extra LLM call)
 - [ ] Build `src/lib/ai/retriever.ts` — agentic retriever: classify → target KB → search → re-rank
 - [ ] Implement re-ranking logic (relevance score threshold)
 - [ ] Implement query reformulation on low-confidence results
 - [ ] Implement no-result handling (clarifying question or escalate)
-- [ ] Unit tests: classifier with various query types
+- [ ] Unit tests: query router with various query types
 - [ ] Unit tests: retriever with mocked vector search
 - [ ] Integration tests: end-to-end query → ranked chunks
 
