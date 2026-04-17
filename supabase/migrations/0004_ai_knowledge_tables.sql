@@ -119,3 +119,38 @@ create policy "conversation_phases_all" on conversation_phases for all
       select id from conversations where tenant_id = current_tenant_id()
     )
   );
+
+-- =============================================================
+-- VECTOR SEARCH RPC
+-- =============================================================
+
+create or replace function match_knowledge_chunks(
+  query_embedding     vector(4096),
+  p_tenant_id         uuid,
+  p_kb_type           text,
+  p_top_k             integer default 5,
+  p_similarity_threshold float default 0.3
+)
+returns table(
+  id          uuid,
+  content     text,
+  similarity  float,
+  metadata    jsonb
+)
+language sql
+stable
+security definer
+as $$
+  select
+    kc.id,
+    kc.content,
+    1 - (kc.embedding <=> query_embedding) as similarity,
+    kc.metadata
+  from knowledge_chunks kc
+  where kc.tenant_id = p_tenant_id
+    and kc.kb_type = p_kb_type
+    and kc.embedding is not null
+    and 1 - (kc.embedding <=> query_embedding) >= p_similarity_threshold
+  order by kc.embedding <=> query_embedding
+  limit p_top_k;
+$$;

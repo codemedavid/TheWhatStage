@@ -228,6 +228,21 @@ export interface Database {
         };
         Returns: { id: string; slug: string };
       };
+      match_knowledge_chunks: {
+        Args: {
+          query_embedding: number[];
+          p_tenant_id: string;
+          p_kb_type: string;
+          p_top_k?: number;
+          p_similarity_threshold?: number;
+        };
+        Returns: {
+          id: string;
+          content: string;
+          similarity: number;
+          metadata: Record<string, unknown>;
+        }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
