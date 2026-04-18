@@ -1,8 +1,9 @@
 const DEFAULT_MAX_TOKENS = 500;
 const DEFAULT_OVERLAP_TOKENS = 50;
+// Approximate character-to-token ratio for English prose (~4 chars/token).
 const CHARS_PER_TOKEN = 4;
 
-interface ChunkOptions {
+export interface ChunkOptions {
   maxTokens?: number;
   overlapTokens?: number;
 }
@@ -16,6 +17,13 @@ export function chunkText(
 
   const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
   const overlapTokens = options.overlapTokens ?? DEFAULT_OVERLAP_TOKENS;
+
+  if (overlapTokens >= maxTokens) {
+    throw new Error(
+      `overlapTokens (${overlapTokens}) must be less than maxTokens (${maxTokens})`
+    );
+  }
+
   const maxChars = maxTokens * CHARS_PER_TOKEN;
   const overlapChars = overlapTokens * CHARS_PER_TOKEN;
 
