@@ -1,0 +1,118 @@
+<h2>Landing Page Layout Approach</h2>
+<p class="subtitle">Two directions for the overall structure and feel</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%); padding: 24px; min-height: 320px;">
+      <!-- Approach A Mockup -->
+      <div style="font-family: system-ui; max-width: 100%;">
+        <!-- Nav -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; margin-bottom: 20px;">
+          <div style="font-weight: 700; font-size: 16px; color: #061A1C;">WhatStage</div>
+          <div style="display: flex; gap: 16px; align-items: center;">
+            <span style="font-size: 11px; color: #71717A;">Features</span>
+            <span style="font-size: 11px; color: #71717A;">Pricing</span>
+            <span style="font-size: 11px; color: #71717A;">FAQ</span>
+            <span style="background: #36F4A4; color: #061A1C; padding: 6px 14px; border-radius: 9999px; font-size: 11px; font-weight: 600;">Get Started</span>
+          </div>
+        </div>
+
+        <!-- Hero -->
+        <div style="text-align: center; padding: 24px 16px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: #36F4A4; background: rgba(54,244,164,0.1); display: inline-block; padding: 4px 12px; border-radius: 9999px; margin-bottom: 12px;">Messenger Funnels</div>
+          <div style="font-size: 28px; font-weight: 300; color: #061A1C; line-height: 1.1; margin-bottom: 10px;">Turn Conversations<br/>Into Conversions</div>
+          <div style="font-size: 11px; color: #71717A; margin-bottom: 16px;">Build intelligent Messenger funnels that<br/>qualify leads automatically</div>
+          <div style="display: flex; gap: 8px; justify-content: center;">
+            <span style="background: #061A1C; color: white; padding: 8px 18px; border-radius: 9999px; font-size: 11px;">Start Free</span>
+            <span style="border: 1.5px solid #061A1C; color: #061A1C; padding: 8px 18px; border-radius: 9999px; font-size: 11px;">Watch Demo</span>
+          </div>
+        </div>
+
+        <!-- Floating elements hint -->
+        <div style="position: relative; height: 60px; margin-top: 8px;">
+          <div style="position: absolute; left: 10%; top: 0; background: white; border: 1px solid #e4e4e7; border-radius: 12px; padding: 8px 12px; font-size: 9px; color: #061A1C; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+            💬 New lead captured!
+          </div>
+          <div style="position: absolute; right: 10%; top: 15px; background: white; border: 1px solid #e4e4e7; border-radius: 12px; padding: 8px 12px; font-size: 9px; color: #061A1C; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+            📊 Stage: Qualified
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Centered & Ethereal</h3>
+      <p>Center-aligned hero with ultra-light typography (weight 330). Floating notification cards as ambient animations. Clean white space. Feels premium and modern — closer to Linear/Stripe.</p>
+      <div class="pros-cons" style="margin-top: 12px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Elegant, high-end feel</li><li>Animations feel natural (floating cards)</li><li>Strong visual hierarchy</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>May feel too minimal for some</li><li>Less "energetic" SaaS vibe</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%); padding: 24px; min-height: 320px;">
+      <!-- Approach B Mockup -->
+      <div style="font-family: system-ui; max-width: 100%;">
+        <!-- Nav -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; margin-bottom: 20px;">
+          <div style="font-weight: 700; font-size: 16px; color: #061A1C;">WhatStage</div>
+          <div style="display: flex; gap: 16px; align-items: center;">
+            <span style="font-size: 11px; color: #71717A;">Features</span>
+            <span style="font-size: 11px; color: #71717A;">Pricing</span>
+            <span style="background: #061A1C; color: white; padding: 6px 14px; border-radius: 9999px; font-size: 11px; font-weight: 600;">Get Started</span>
+          </div>
+        </div>
+
+        <!-- Hero - Split -->
+        <div style="display: flex; gap: 16px; padding: 16px;">
+          <div style="flex: 1;">
+            <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: #36F4A4; margin-bottom: 10px; font-weight: 600;">Messenger Funnels</div>
+            <div style="font-size: 22px; font-weight: 700; color: #061A1C; line-height: 1.15; margin-bottom: 10px;">Automate Your<br/>Lead Pipeline<br/>With Messenger</div>
+            <div style="font-size: 10px; color: #71717A; margin-bottom: 14px; line-height: 1.5;">Chat → Qualify → Convert.<br/>All on autopilot.</div>
+            <span style="background: #36F4A4; color: #061A1C; padding: 8px 18px; border-radius: 9999px; font-size: 11px; font-weight: 600; display: inline-block;">Start Free →</span>
+          </div>
+          <div style="flex: 1; position: relative;">
+            <!-- Animated dashboard mockup -->
+            <div style="background: #061A1C; border-radius: 12px; padding: 12px; height: 160px; position: relative; overflow: hidden;">
+              <div style="display: flex; gap: 4px; margin-bottom: 10px;">
+                <div style="width: 6px; height: 6px; border-radius: 50%; background: #ff5f57;"></div>
+                <div style="width: 6px; height: 6px; border-radius: 50%; background: #febc2e;"></div>
+                <div style="width: 6px; height: 6px; border-radius: 50%; background: #28c840;"></div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <div style="flex: 1;">
+                  <div style="background: #102620; border-radius: 6px; padding: 6px; margin-bottom: 6px;">
+                    <div style="font-size: 7px; color: #A1A1AA;">Leads Today</div>
+                    <div style="font-size: 14px; color: #36F4A4; font-weight: 700;">247</div>
+                  </div>
+                  <div style="background: #102620; border-radius: 6px; padding: 6px;">
+                    <div style="font-size: 7px; color: #A1A1AA;">Conversion</div>
+                    <div style="font-size: 14px; color: white; font-weight: 700;">34%</div>
+                  </div>
+                </div>
+                <div style="flex: 1.2; background: #102620; border-radius: 6px; padding: 8px;">
+                  <div style="font-size: 7px; color: #A1A1AA; margin-bottom: 6px;">Pipeline</div>
+                  <div style="display: flex; gap: 3px; align-items: flex-end; height: 60px;">
+                    <div style="flex:1; background: #36F4A4; border-radius: 2px; height: 70%; opacity: 0.3;"></div>
+                    <div style="flex:1; background: #36F4A4; border-radius: 2px; height: 45%; opacity: 0.5;"></div>
+                    <div style="flex:1; background: #36F4A4; border-radius: 2px; height: 85%; opacity: 0.7;"></div>
+                    <div style="flex:1; background: #36F4A4; border-radius: 2px; height: 60%;"></div>
+                    <div style="flex:1; background: #36F4A4; border-radius: 2px; height: 90%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Split Hero + Product Preview</h3>
+      <p>Left-aligned bold headline with an animated dark dashboard mockup on the right. Bolder typography, more "product-forward". Feels energetic — closer to Clerk/Vercel marketing style.</p>
+      <div class="pros-cons" style="margin-top: 12px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Shows the product immediately</li><li>More energetic, action-oriented</li><li>Dashboard mockup drives curiosity</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Busier, more complex</li><li>Split layout needs more responsive care</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

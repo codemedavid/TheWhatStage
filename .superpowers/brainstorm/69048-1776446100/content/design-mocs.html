@@ -1,0 +1,192 @@
+<h2>Design Section 3: Index / MOC Files</h2>
+<p class="subtitle">The 4 Map of Content files that serve as your dashboard into the knowledge graph</p>
+
+<div class="section">
+  <h3>1. System Overview</h3>
+  <div class="mockup">
+    <div class="mockup-header">Index/System Overview.md</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.78rem; line-height: 1.7; white-space: pre-wrap;"># WhatStage — System Overview
+
+## Architecture
+```mermaid
+graph TB
+    subgraph Messenger
+        FB[Facebook Messenger] --> WH[Webhook API]
+        WH --> BOT[Bot Engine]
+        BOT --> FB
+    end
+
+    subgraph "Tenant Dashboard"
+        DASH[Dashboard] --> LEADS[Lead Pipeline]
+        DASH --> ACTIONS[Action Page Builder]
+        DASH --> WF[Workflow Editor]
+        DASH --> SETTINGS[Settings]
+    end
+
+    subgraph "Action Pages"
+        AP_FORM[Forms]
+        AP_CAL[Calendar]
+        AP_SALES[Sales Pages]
+        AP_SHOP[Product Catalog]
+    end
+
+    subgraph "Data Layer"
+        DB[(Supabase Postgres)]
+        AUTH[Supabase Auth]
+        RT[Supabase Realtime]
+    end
+
+    BOT -->|sends action buttons| AP_FORM
+    BOT -->|sends action buttons| AP_CAL
+    AP_FORM -->|submissions| DB
+    LEADS --> DB
+    WF -->|triggers| BOT
+    DASH --> AUTH
+```
+
+## Subsystems
+| Subsystem | Features | Status |
+|-----------|----------|--------|
+| Messenger Bot | [[Messenger Bot Engine]], [[Bot Flows]] | planned |
+| Tenant Dashboard | [[Tenant Management]], [[Lead Pipeline]] | planned |
+| Action Pages | [[Form Pages]], [[Calendar Booking]], [[Sales Pages]], [[Product Catalog]] | planned |
+| Commerce | [[Products]], [[Orders]], [[Checkout]] | planned |
+| Workflows | [[Workflow Engine]], [[Workflow Steps]] | planned |
+| Auth & Multi-tenancy | [[Auth Flow]], [[Tenant Routing]] | planned |</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>2. Database Schema Map</h3>
+  <div class="mockup">
+    <div class="mockup-header">Index/Database Schema Map.md</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.78rem; line-height: 1.7; white-space: pre-wrap;"># Database Schema Map
+
+## Entity Relationship Diagram
+```mermaid
+erDiagram
+    tenants ||--o{ tenant_members : has
+    tenants ||--o{ leads : has
+    tenants ||--o{ stages : has
+    tenants ||--o{ action_pages : has
+    tenants ||--o{ products : has
+    tenants ||--o{ bot_flows : has
+    tenants ||--o{ workflows : has
+    leads ||--o{ lead_events : logs
+    leads ||--o{ conversations : has
+    leads ||--o{ orders : places
+    leads ||--o{ appointments : books
+    leads }o--|| stages : "current stage"
+    conversations ||--o{ messages : contains
+    action_pages ||--o{ action_submissions : receives
+    workflows ||--o{ workflow_steps : contains
+    workflows ||--o{ workflow_runs : executes
+```
+
+## Tables by Subsystem
+
+### Multi-tenancy
+- [[tenants]] — business accounts
+- [[tenant_members]] — user-to-tenant mapping
+
+### Leads & Pipeline
+- [[leads]] — messenger contacts
+- [[stages]] — pipeline stages
+- [[lead_events]] — activity log
+
+### Conversations
+- [[conversations]] — chat threads
+- [[messages]] — individual messages
+
+### Action Pages
+- [[action_pages]] — configurable web pages
+- [[action_submissions]] — form/page submissions
+
+### Commerce
+- [[products]] — product catalog
+- [[orders]] — purchase records
+- [[appointments]] — calendar bookings
+
+### Bot & Workflows
+- [[bot_flows]] — bot trigger configs
+- [[workflows]] — automation definitions
+- [[workflow_steps]] — step configs
+- [[workflow_runs]] — execution logs</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>3. Feature Roadmap</h3>
+  <div class="mockup">
+    <div class="mockup-header">Index/Feature Roadmap.md</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.78rem; line-height: 1.7; white-space: pre-wrap;"># Feature Roadmap
+
+## Status Legend
+- 🔴 planned — not started
+- 🟡 in-progress — actively building
+- 🟢 complete — implemented and tested
+
+## Features
+
+| Feature | Subsystem | Status | Entities | Components |
+|---------|-----------|--------|----------|------------|
+| [[Tenant Management]] | auth | 🔴 | [[tenants]], [[tenant_members]] | [[SettingsPage]] |
+| [[Auth Flow]] | auth | 🔴 | [[tenant_members]] | [[LoginPage]], [[SignupPage]] |
+| [[Tenant Routing]] | auth | 🔴 | [[tenants]] | [[middleware]] |
+| [[Lead Pipeline]] | leads | 🔴 | [[leads]], [[stages]], [[lead_events]] | [[LeadsPage]] |
+| [[Messenger Bot Engine]] | messenger | 🔴 | [[bot_flows]], [[messages]] | [[BotPage]] |
+| [[Form Pages]] | actions | 🔴 | [[action_pages]], [[action_submissions]] | [[ActionFormPage]] |
+| [[Calendar Booking]] | actions | 🔴 | [[action_pages]], [[appointments]] | [[ActionCalendarPage]] |
+| [[Product Catalog]] | commerce | 🔴 | [[products]], [[action_pages]] | [[ActionProductPage]] |
+| [[Orders]] | commerce | 🔴 | [[orders]] | [[OrdersView]] |
+| [[Workflow Engine]] | workflows | 🔴 | [[workflows]], [[workflow_steps]], [[workflow_runs]] | [[WorkflowsPage]] |
+
+<!-- AUTO-UPDATED: New features are appended here by feature-doc skill --></div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>4. Component Registry</h3>
+  <div class="mockup">
+    <div class="mockup-header">Index/Component Registry.md</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.78rem; line-height: 1.7; white-space: pre-wrap;"># Component Registry
+
+## Pages
+
+### Marketing
+| Component | Route | Source |
+|-----------|-------|--------|
+| [[MarketingHomePage]] | `/` | `src/app/(marketing)/page.tsx` |
+| [[LoginPage]] | `/login` | `src/app/(marketing)/login/page.tsx` |
+| [[SignupPage]] | `/signup` | `src/app/(marketing)/signup/page.tsx` |
+| [[OnboardingPage]] | `/onboarding` | `src/app/(marketing)/onboarding/page.tsx` |
+
+### Tenant Dashboard
+| Component | Route | Source |
+|-----------|-------|--------|
+| [[BotPage]] | `/app/bot` | `src/app/(tenant)/app/bot/page.tsx` |
+| [[ActionsPage]] | `/app/actions` | `src/app/(tenant)/app/actions/page.tsx` |
+| [[LeadsPage]] | `/app/leads` | `src/app/(tenant)/app/leads/page.tsx` |
+| [[WorkflowsPage]] | `/app/workflows` | `src/app/(tenant)/app/workflows/page.tsx` |
+| [[SettingsPage]] | `/app/settings` | `src/app/(tenant)/app/settings/page.tsx` |
+
+### Action Pages
+| Component | Route | Source |
+|-----------|-------|--------|
+| [[ActionSlugPage]] | `/a/:slug` | `src/app/(tenant)/a/[slug]/page.tsx` |
+
+### API Routes
+| Route | Source |
+|-------|--------|
+| `/api/fb/webhook` | `src/app/api/fb/webhook/route.ts` |
+| `/api/onboarding/create-tenant` | `src/app/api/onboarding/create-tenant/route.ts` |
+| `/auth/callback` | `src/app/auth/callback/route.ts` |
+
+### Shared Components
+| Component | Source |
+|-----------|--------|
+| [[DashboardNav]] | `src/components/dashboard/DashboardNav.tsx` |
+
+<!-- AUTO-UPDATED: New components appended by feature-doc skill --></div>
+  </div>
+</div>

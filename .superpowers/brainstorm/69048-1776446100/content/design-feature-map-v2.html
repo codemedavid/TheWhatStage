@@ -1,0 +1,186 @@
+<h2>Design Section 4 (Updated): Complete Feature Map</h2>
+<p class="subtitle">Now with RAG & Bot Training + Goal-Driven Actions — 9 subsystems, 40 features</p>
+
+<div class="section" style="padding: 1.5rem; background: rgba(245,158,11,0.1); border-radius: 12px; border-left: 4px solid #f59e0b;">
+  <h3 style="margin-top: 0;">NEW: 🧠 RAG & Bot Training</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem; width: 30%;"><strong>Knowledge Base</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Tenant uploads docs, FAQs, product info, business context — stored and chunked for retrieval</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>RAG Pipeline</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Chunk → embed → vector store. Bot retrieves relevant context per conversation turn</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Bot Rules & Persona</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Tenant defines behavior rules ("always ask for email"), tone, boundaries ("never discuss pricing")</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Test Conversation</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Sandbox chat — tenant talks to their own bot, sees RAG context used, tests action buttons</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Conversation Review</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Review past real conversations — flag bad responses, correct them → corrections become rules</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;"><strong>Training Dashboard</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Unified UI — upload docs, set rules, define goal, test, review, iterate</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="padding: 1.5rem; background: rgba(245,158,11,0.1); border-radius: 12px; border-left: 4px solid #f59e0b;">
+  <h3 style="margin-top: 0;">NEW: 🎯 Goal-Driven Actions</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem; width: 30%;"><strong>Goal Configuration</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Tenant sets primary goal (qualify, book, sell, collect) — this shapes bot personality and action strategy</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Qualification Engine</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Quiz-style form builder — conditional questions, scoring rules, auto-tag + auto-stage based on answers</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Qualification Data View</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Dashboard view — see every answer a lead gave, their score, which conditions triggered, resulting tags/stage</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Booking Integration</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Bot motivates booking → pushes calendar page → appointment auto-appears on tenant dashboard calendar view</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Sales Push</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Bot showcases products → pushes catalog/checkout → order auto-tracked in commerce dashboard</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;"><strong>Action Conditions</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">If/then rules on form answers — e.g. budget > $10k → tag "high-value" → move to "Qualified" → trigger workflow</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>How Goal Shapes the Entire System</h3>
+  <div class="mockup">
+    <div class="mockup-header">Goal → Bot Behavior → Action → Result</div>
+    <div class="mockup-body" style="font-size: 0.82rem; line-height: 1.6;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold;">
+          <td style="padding: 0.6rem;">Goal</td>
+          <td style="padding: 0.6rem;">Bot Personality</td>
+          <td style="padding: 0.6rem;">Action Pushed</td>
+          <td style="padding: 0.6rem;">Data Stored</td>
+          <td style="padding: 0.6rem;">Auto Result</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.6rem;"><span style="background: rgba(99,102,241,0.2); padding: 2px 8px; border-radius: 4px;">Qualify Leads</span></td>
+          <td style="padding: 0.6rem; color: #a78bfa;">Probing, curious, motivates form fill</td>
+          <td style="padding: 0.6rem;">Qualification quiz</td>
+          <td style="padding: 0.6rem;">All answers + score</td>
+          <td style="padding: 0.6rem;">Tag + stage move + workflow trigger</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.6rem;"><span style="background: rgba(16,185,129,0.2); padding: 2px 8px; border-radius: 4px;">Book Appointments</span></td>
+          <td style="padding: 0.6rem; color: #a78bfa;">Urgent, highlights availability</td>
+          <td style="padding: 0.6rem;">Calendar booking page</td>
+          <td style="padding: 0.6rem;">Appointment details</td>
+          <td style="padding: 0.6rem;">Appointment created on dashboard</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.6rem;"><span style="background: rgba(245,158,11,0.2); padding: 2px 8px; border-radius: 4px;">Sell Products</span></td>
+          <td style="padding: 0.6rem; color: #a78bfa;">Persuasive, showcases value</td>
+          <td style="padding: 0.6rem;">Product catalog + checkout</td>
+          <td style="padding: 0.6rem;">Order + items</td>
+          <td style="padding: 0.6rem;">Order tracked, lead → Customer stage</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.6rem;"><span style="background: rgba(239,68,68,0.2); padding: 2px 8px; border-radius: 4px;">Collect Info</span></td>
+          <td style="padding: 0.6rem; color: #a78bfa;">Friendly, asks for details</td>
+          <td style="padding: 0.6rem;">Lead capture form</td>
+          <td style="padding: 0.6rem;">Form submissions</td>
+          <td style="padding: 0.6rem;">Lead enriched, tagged</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Updated Subsystem Summary</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 2px solid rgba(255,255,255,0.2); font-weight: bold;">
+          <td style="padding: 0.5rem;">Subsystem</td>
+          <td style="padding: 0.5rem;">Features</td>
+          <td style="padding: 0.5rem;">New DB Tables</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;">🔐 Auth & Multi-tenancy</td>
+          <td style="padding: 0.5rem;">4</td>
+          <td style="padding: 0.5rem;">—</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;">💬 Messenger Bot Engine</td>
+          <td style="padding: 0.5rem;">5</td>
+          <td style="padding: 0.5rem;">—</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;">📊 Lead Management</td>
+          <td style="padding: 0.5rem;">4</td>
+          <td style="padding: 0.5rem;">—</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;">🎯 Action Pages</td>
+          <td style="padding: 0.5rem;">6</td>
+          <td style="padding: 0.5rem;">—</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;">🛒 Commerce</td>
+          <td style="padding: 0.5rem;">3</td>
+          <td style="padding: 0.5rem;">—</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;">⚡ Workflows & Automation</td>
+          <td style="padding: 0.5rem;">4</td>
+          <td style="padding: 0.5rem;">—</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;">📱 Tenant Dashboard</td>
+          <td style="padding: 0.5rem;">3</td>
+          <td style="padding: 0.5rem;">—</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(245,158,11,0.05);">
+          <td style="padding: 0.5rem;">🧠 <strong>RAG & Bot Training</strong></td>
+          <td style="padding: 0.5rem;"><strong>6</strong></td>
+          <td style="padding: 0.5rem;"><strong>knowledge_docs, knowledge_chunks, bot_rules, conversation_corrections</strong></td>
+        </tr>
+        <tr style="background: rgba(245,158,11,0.05);">
+          <td style="padding: 0.5rem;">🎯 <strong>Goal-Driven Actions</strong></td>
+          <td style="padding: 0.5rem;"><strong>6</strong></td>
+          <td style="padding: 0.5rem;"><strong>qualification_forms, qualification_responses, action_conditions</strong></td>
+        </tr>
+        <tr style="border-top: 2px solid rgba(255,255,255,0.2); font-weight: bold;">
+          <td style="padding: 0.5rem;">TOTAL</td>
+          <td style="padding: 0.5rem;">41 features</td>
+          <td style="padding: 0.5rem;">7 new tables (23 total)</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 1.5rem; padding: 1.5rem; background: rgba(16,185,129,0.1); border-radius: 12px; border-left: 4px solid #10b981;">
+  <h3 style="margin-top: 0;">Updated Vault Estimate: ~85+ interconnected Obsidian notes</h3>
+  <p style="margin-bottom: 0;">41 features + 23 entities + ~18 components/pages + ~10 core flows + 4 MOC indexes</p>
+</div>

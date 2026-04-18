@@ -1,0 +1,193 @@
+<h2>Design Section 4: Complete Feature Map</h2>
+<p class="subtitle">Every feature WhatStage needs, organized by subsystem — this is what the bootstrap skill will generate</p>
+
+<div class="section">
+  <h3>🔐 Auth & Multi-tenancy</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Auth Flow</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Supabase auth — signup, login, callback, session management</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Tenant Routing</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Wildcard subdomain resolution — middleware extracts tenant slug, resolves tenant_id</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Tenant Management</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Settings page — business type, bot goal, FB credentials, team members</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;"><strong>Onboarding</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">New tenant creation wizard — slug, name, business type, bot goal, FB page connect</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>💬 Messenger Bot Engine</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Webhook Handler</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Receive & verify FB webhooks — signature validation, event parsing, tenant routing</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Message Handling</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Process incoming messages — create/update lead, log conversation, trigger bot flows</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Send API</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Send messages back — text, images, action buttons with URLs to action pages</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Bot Flows</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Configurable triggers — keyword match, first message, postback → response templates</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;"><strong>AI Reasoning</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">HuggingFace integration — context evaluation, intent detection, stage recommendation</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>📊 Lead Management</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Lead Pipeline</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Kanban board — drag leads between stages, filter by tags, search</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Lead Profile</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Detail view — FB info, stage history, activity timeline, tags, notes</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Activity Tracking</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Event log — messages, form submits, appointments, purchases, stage changes</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;"><strong>Stage Management</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Configure stages — add/remove/reorder, custom colors, auto-move rules</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🎯 Action Pages</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Form Pages</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Configurable lead capture forms — fields, validation, submit → lead_event</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Calendar Booking</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Appointment scheduler — available slots, booking confirmation, reminders</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Sales Pages</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Landing pages — product showcase, CTA buttons, testimonials</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Product Catalog</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">E-commerce pages — product grid, detail view, cart, add to cart</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Checkout</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Order completion — cart summary, payment reference, order confirmation</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;"><strong>Action Page Builder</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Dashboard UI — create/edit action pages, configure fields, preview, publish</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>🛒 Commerce</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Product Management</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">CRUD products — name, price, images (Cloudinary), stock tracking</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Order Management</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">View/manage orders — status updates (pending → paid → fulfilled), order history</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;"><strong>Appointment Management</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">View/manage bookings — confirm, cancel, reschedule, calendar view</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>⚡ Workflows & Automation</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Workflow Engine</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Core execution — trigger evaluation, step processing, run logging</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Workflow Builder</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Dashboard UI — visual step editor, trigger config, enable/disable</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Workflow Steps</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Step types — send message, send image, wait, condition, move stage, tag, HTTP call</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;"><strong>Workflow Triggers</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Event-based — on form submit, on purchase, on stage change, on appointment booked</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>📱 Tenant Dashboard</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <table style="width:100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Dashboard Home</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Overview — lead count, recent activity, stage distribution, quick actions</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 0.5rem;"><strong>Conversation Inbox</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Live chat view — message history per lead, send manual messages, real-time via Supabase</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.5rem;"><strong>Analytics</strong></td>
+          <td style="padding: 0.5rem; color: #a78bfa;">Funnel metrics — conversion rates, action page performance, lead sources</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 1.5rem; padding: 1.5rem; background: rgba(16,185,129,0.1); border-radius: 12px; border-left: 4px solid #10b981;">
+  <h3 style="margin-top: 0;">Total: 28 Features across 7 Subsystems</h3>
+  <p style="margin-bottom: 0;">Combined with 16 DB entities, ~15 UI components/pages, and ~8 core user flows, the bootstrap skill will generate approximately <strong>70+ interconnected Obsidian notes</strong>.</p>
+</div>

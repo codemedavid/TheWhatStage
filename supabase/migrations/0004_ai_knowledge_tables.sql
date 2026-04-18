@@ -53,7 +53,7 @@ create table knowledge_chunks (
   tenant_id   uuid not null references tenants(id) on delete cascade,
   content     text not null,
   kb_type     text not null check (kb_type in ('general', 'product')),
-  embedding   vector(4096),
+  embedding   vector(1536),
   metadata    jsonb not null default '{}',
   created_at  timestamptz not null default now()
 );
@@ -125,7 +125,7 @@ create policy "conversation_phases_all" on conversation_phases for all
 -- =============================================================
 
 create or replace function match_knowledge_chunks(
-  query_embedding     vector(4096),
+  query_embedding     vector(1536),
   p_tenant_id         uuid,
   p_kb_type           text,
   p_top_k             integer default 5,

@@ -6,27 +6,9 @@
       {
         "id": "c8caafb3adc602d2",
         "type": "tabs",
-        "dimension": 18.236301369863014,
         "children": [
           {
             "id": "39d0dfc4ca7f18b0",
-            "type": "leaf",
-            "state": {
-              "type": "empty",
-              "state": {},
-              "icon": "lucide-file",
-              "title": "New tab"
-            }
-          }
-        ]
-      },
-      {
-        "id": "cb449307d0b48cc8",
-        "type": "tabs",
-        "dimension": 81.76369863013699,
-        "children": [
-          {
-            "id": "268ff215196a428b",
             "type": "leaf",
             "state": {
               "type": "graph",
@@ -197,8 +179,17 @@
       "bases:Create new base": false
     }
   },
-  "active": "268ff215196a428b",
+  "active": "39d0dfc4ca7f18b0",
   "lastOpenFiles": [
+    "Components/ActionsPage.md",
+    "Components/ActionSlugPage.md",
+    "Entities/tenants.md",
+    "Entities/Auth Helpers.md",
+    "Entities/Slug Utilities.md",
+    "Flows/Signup to Dashboard Flow.md",
+    "Features/Tenant Account Setup.md",
+    "Entities/leads.md",
+    "Features/Webhook Retry Queue.md",
     "Index/Component Registry.md",
     "Components/MarketingLayout.md",
     "Index/Feature Roadmap.md",
@@ -207,7 +198,6 @@
     "Index/System Overview.md",
     "Entities/stages.md",
     "Flows/Conversation Review Flow.md",
-    "Entities/tenants.md",
     "Flows/RAG Knowledge Retrieval Flow.md",
     "Components/CreateTenantRoute.md",
     "Flows/Action Page Submission Flow.md",
@@ -216,14 +206,6 @@
     "Flows/Tenant Onboarding Flow.md",
     "Flows/Messenger Webhook Flow.md",
     "Flows/Product Purchase Flow.md",
-    "Flows/Appointment Booking Flow.md",
-    "Flows/Lead Qualification Flow.md",
-    "Features/Action Conditions.md",
-    "Features/Sales Push.md",
-    "Features/Booking Integration.md",
-    "Features/Qualification Data View.md",
-    "Features/Qualification Engine.md",
-    "Features/Goal Configuration.md",
-    "Features/Training Dashboard.md"
+    "Flows/Appointment Booking Flow.md"
   ]
 }

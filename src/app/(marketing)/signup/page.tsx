@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { redirectAfterAuth } from "@/lib/auth/redirect";
 
 export default function SignupPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -44,8 +43,9 @@ export default function SignupPage() {
       return;
     }
 
-    // 3. Session active — go to onboarding
-    router.push("/onboarding");
+    // 3. Session active — hard navigate so middleware refreshes cookies
+    const destination = await redirectAfterAuth();
+    window.location.href = destination;
   }
 
   return (

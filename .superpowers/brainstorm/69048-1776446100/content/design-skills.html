@@ -1,0 +1,101 @@
+<h2>Design Section 2: The Two Skills</h2>
+<p class="subtitle">How obsidian-bootstrap and feature-doc work together</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Skill 1: obsidian-bootstrap</div>
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <div class="label">PURPOSE</div>
+      <p>One-time scan of the existing codebase to seed the Obsidian vault with all current entities, components, features, and flows.</p>
+
+      <div class="label">WHEN TO USE</div>
+      <p>Run once at project start, or re-run if you want to resync the vault from scratch.</p>
+
+      <div class="label">WHAT IT DOES</div>
+      <ol style="padding-left: 1.2rem;">
+        <li><strong>Scan DB schema</strong> — parse <code>supabase/migrations/*.sql</code> and <code>src/types/database.ts</code> → generate Entity notes for all 16 tables</li>
+        <li><strong>Scan source files</strong> — glob <code>src/app/**/*</code> and <code>src/components/**/*</code> → generate Component notes for every page and component</li>
+        <li><strong>Infer features</strong> — group related entities + components into Feature notes based on subsystem (leads, commerce, messenger, workflows, action pages, tenants)</li>
+        <li><strong>Generate initial flows</strong> — create core user journey flows based on CLAUDE.md descriptions</li>
+        <li><strong>Build MOCs</strong> — create all 4 Index files (System Overview, DB Schema Map, Feature Roadmap, Component Registry)</li>
+        <li><strong>Wire wikilinks</strong> — cross-reference everything: entities ↔ features ↔ components ↔ flows</li>
+      </ol>
+
+      <div class="label">OUTPUT</div>
+      <p>~40-50 Obsidian notes fully interlinked in the vault</p>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Skill 2: feature-doc</div>
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.8;">
+      <div class="label">PURPOSE</div>
+      <p>Triggered when implementing a new feature. Auto-generates Obsidian notes for all new pieces and updates existing notes + MOCs.</p>
+
+      <div class="label">WHEN TO USE</div>
+      <p>After adding a new feature, API route, component, DB table, or user flow.</p>
+
+      <div class="label">WHAT IT DOES</div>
+      <ol style="padding-left: 1.2rem;">
+        <li><strong>Identify what's new</strong> — ask what was built (or detect from recent changes)</li>
+        <li><strong>Generate notes</strong> — create Feature, Entity, and/or Component notes using shared templates</li>
+        <li><strong>Generate flow</strong> — if it's a user-facing feature, create a Flow note with Mermaid diagram</li>
+        <li><strong>Update existing notes</strong> — add wikilinks to related existing entities/features/components</li>
+        <li><strong>Update MOCs</strong> — append new entries to Feature Roadmap, Component Registry, DB Schema Map</li>
+        <li><strong>Validate links</strong> — check that all <code>[[wikilinks]]</code> in new notes point to existing notes</li>
+      </ol>
+
+      <div class="label">OUTPUT</div>
+      <p>3-8 new/updated Obsidian notes per feature, all wikilinked</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Shared Resources</h3>
+  <div class="mockup">
+    <div class="mockup-header">.claude/skills/obsidian-bootstrap/ & .claude/skills/feature-doc/</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.82rem; line-height: 1.8; white-space: pre-wrap;">.claude/skills/
+├── obsidian-bootstrap/
+│   ├── SKILL.md              # Skill definition + bootstrap process
+│   └── references/
+│       ├── templates.md      # Shared note templates (Feature, Entity, Component, Flow)
+│       ├── subsystems.md     # Mapping of tables/routes → subsystem names
+│       └── moc-templates.md  # MOC templates (System Overview, Roadmap, etc.)
+│
+├── feature-doc/
+│   ├── SKILL.md              # Skill definition + incremental process
+│   └── references/
+│       └── templates.md      # → symlink or copy of bootstrap/references/templates.md</div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Data Flow</h3>
+  <div class="mockup">
+    <div class="mockup-header">How the pieces connect</div>
+    <div class="mockup-body" style="text-align: center; padding: 2rem;">
+      <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+        <div style="background: rgba(99,102,241,0.15); padding: 1rem; border-radius: 8px; min-width: 140px;">
+          <strong>Source Code</strong><br>
+          <span style="font-size: 0.8rem; color: #a78bfa;">src/ + supabase/</span>
+        </div>
+        <div style="font-size: 1.5rem;">→</div>
+        <div style="background: rgba(245,158,11,0.15); padding: 1rem; border-radius: 8px; min-width: 140px;">
+          <strong>Skills</strong><br>
+          <span style="font-size: 0.8rem; color: #fbbf24;">bootstrap / feature-doc</span>
+        </div>
+        <div style="font-size: 1.5rem;">→</div>
+        <div style="background: rgba(16,185,129,0.15); padding: 1rem; border-radius: 8px; min-width: 140px;">
+          <strong>Templates</strong><br>
+          <span style="font-size: 0.8rem; color: #34d399;">references/*.md</span>
+        </div>
+        <div style="font-size: 1.5rem;">→</div>
+        <div style="background: rgba(59,130,246,0.15); padding: 1rem; border-radius: 8px; min-width: 140px;">
+          <strong>Obsidian Vault</strong><br>
+          <span style="font-size: 0.8rem; color: #60a5fa;">whatstage_obsidian/</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

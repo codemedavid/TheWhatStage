@@ -24,7 +24,7 @@ describe("searchKnowledge", () => {
       error: null,
     });
 
-    const queryEmbedding = Array.from({ length: 4096 }, () => 0.5);
+    const queryEmbedding = Array.from({ length: 1536 }, () => 0.5);
     const result = await searchKnowledge({
       queryEmbedding,
       tenantId: "tenant-abc",
@@ -46,7 +46,7 @@ describe("searchKnowledge", () => {
   it("uses default topK=5 and threshold=0.3", async () => {
     mockRpc.mockReturnValue({ data: [], error: null });
 
-    const queryEmbedding = Array.from({ length: 4096 }, () => 0.1);
+    const queryEmbedding = Array.from({ length: 1536 }, () => 0.1);
     await searchKnowledge({
       queryEmbedding,
       tenantId: "tenant-abc",
@@ -68,7 +68,7 @@ describe("searchKnowledge", () => {
       error: { message: "function not found" },
     });
 
-    const queryEmbedding = Array.from({ length: 4096 }, () => 0.1);
+    const queryEmbedding = Array.from({ length: 1536 }, () => 0.1);
 
     await expect(
       searchKnowledge({
@@ -82,7 +82,7 @@ describe("searchKnowledge", () => {
   it("returns empty array when no results match threshold", async () => {
     mockRpc.mockReturnValue({ data: [], error: null });
 
-    const queryEmbedding = Array.from({ length: 4096 }, () => 0.1);
+    const queryEmbedding = Array.from({ length: 1536 }, () => 0.1);
     const result = await searchKnowledge({
       queryEmbedding,
       tenantId: "tenant-abc",

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { embedText, embedBatch } from "@/lib/ai/embedding";
+import { embedText, embedBatch, EMBEDDING_DIM } from "@/lib/ai/embedding";
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -19,8 +19,8 @@ describe("embedText", () => {
 
     const result = await embedText("Hello world");
 
-    expect(result).toEqual(fakeEmbedding);
-    expect(result).toHaveLength(4096);
+    expect(result).toEqual(fakeEmbedding.slice(0, EMBEDDING_DIM));
+    expect(result).toHaveLength(EMBEDDING_DIM);
     expect(mockFetch).toHaveBeenCalledOnce();
 
     const [url, options] = mockFetch.mock.calls[0];
@@ -61,9 +61,9 @@ describe("embedBatch", () => {
     const result = await embedBatch(texts);
 
     expect(result).toHaveLength(3);
-    expect(result[0]).toHaveLength(4096);
-    expect(result[1]).toHaveLength(4096);
-    expect(result[2]).toHaveLength(4096);
+    expect(result[0]).toHaveLength(EMBEDDING_DIM);
+    expect(result[1]).toHaveLength(EMBEDDING_DIM);
+    expect(result[2]).toHaveLength(EMBEDDING_DIM);
 
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(body.inputs).toEqual(["one", "two", "three"]);

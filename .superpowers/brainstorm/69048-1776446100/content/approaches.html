@@ -1,0 +1,87 @@
+<h2>Obsidian Knowledge Graph + Auto-Doc Skill</h2>
+<p class="subtitle">Three approaches for building the system — pick the one that fits best</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Single Monolithic Skill</h3>
+      <p>One Claude Code skill (<code>feature-doc</code>) that handles everything: bootstrap scan, new feature generation, MOC updates, and flow diagrams — all in one SKILL.md file.</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Simple — one skill to invoke</li>
+            <li>All logic in one place</li>
+            <li>Easy to maintain</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>Large skill file, harder to read</li>
+            <li>Can't run bootstrap vs incremental separately</li>
+            <li>Mixes concerns (scanning code vs generating docs)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Two Skills: Bootstrap + Feature-Doc</h3>
+      <p>Split into <code>obsidian-bootstrap</code> (one-time scan of codebase → seed vault) and <code>feature-doc</code> (triggered per new feature → generates notes + updates MOCs). Shared templates in a <code>references/</code> folder.</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Clean separation of concerns</li>
+            <li>Bootstrap runs once, feature-doc runs often</li>
+            <li>Shared templates keep notes consistent</li>
+            <li>Each skill is focused and readable</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>Two skills to remember</li>
+            <li>Must keep templates in sync</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Skill + Obsidian Plugin</h3>
+      <p>Claude Code skill generates the notes, plus a custom Obsidian plugin that provides live views, auto-updates graph colors, and validates link integrity inside Obsidian itself.</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Richest Obsidian experience</li>
+            <li>Live validation of broken links</li>
+            <li>Custom graph coloring by node type</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>Significant extra dev effort (Obsidian plugin API)</li>
+            <li>Plugin needs maintenance as Obsidian updates</li>
+            <li>Overkill for documentation — tags + folders achieve 90% of this</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.5rem; background: rgba(99, 102, 241, 0.1); border-radius: 12px; border-left: 4px solid #6366f1;">
+  <h3 style="margin-top: 0;">💡 Recommendation: Option B</h3>
+  <p style="margin-bottom: 0;">Two focused skills with shared templates give us the best balance. Bootstrap handles the one-time heavy lift of scanning 16 DB tables, 30+ source files, and generating the initial graph. Feature-doc stays lean for daily use — just tell it what you built and it generates the right notes with all the wikilinks. Shared Markdown templates in <code>references/</code> keep everything consistent.</p>
+</div>

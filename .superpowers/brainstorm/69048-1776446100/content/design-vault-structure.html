@@ -1,0 +1,173 @@
+<h2>Design Section 1: Vault Structure & Note Templates</h2>
+<p class="subtitle">The folder layout and Markdown templates that both skills will use</p>
+
+<div class="section">
+  <h3>Vault Folder Structure</h3>
+  <div class="mockup">
+    <div class="mockup-header">whatstage_obsidian/</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.85rem; line-height: 1.8;">
+      <div>📁 <strong>Features/</strong> <span style="color: #a78bfa;">— one note per feature (Lead Pipeline, Workflow Engine...)</span></div>
+      <div>📁 <strong>Entities/</strong> <span style="color: #a78bfa;">— one note per DB table (leads, orders, tenants...)</span></div>
+      <div>📁 <strong>Components/</strong> <span style="color: #a78bfa;">— one note per UI page or React component</span></div>
+      <div>📁 <strong>Flows/</strong> <span style="color: #a78bfa;">— end-to-end user journeys with Mermaid + steps</span></div>
+      <div>📁 <strong>Index/</strong> <span style="color: #a78bfa;">— MOCs: System Overview, DB Schema Map, Feature Roadmap, Component Registry</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Feature Note Template</h3>
+  <div class="mockup">
+    <div class="mockup-header">Features/Lead Pipeline.md</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.8rem; line-height: 1.7; white-space: pre-wrap;">---
+tags: [feature, leads]
+status: planned
+subsystem: lead-management
+created: 2026-04-18
+---
+
+# Lead Pipeline
+
+## Description
+Visual pipeline for managing leads through configurable stages. Leads move through stages based on actions taken and AI reasoning.
+
+## Entities
+- [[leads]] — core lead records
+- [[stages]] — pipeline stage definitions
+- [[lead_events]] — activity tracking
+
+## Components
+- [[LeadsPage]] — pipeline board view
+- [[DashboardNav]] — navigation entry point
+
+## Flows
+- [[Lead Qualification Flow]]
+- [[Stage Movement Flow]]
+
+## API Routes
+- `GET /api/leads` — list leads by stage
+- `PATCH /api/leads/:id/stage` — move lead
+
+## Notes
+_Additional context, decisions, or TODOs_</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Entity Note Template</h3>
+  <div class="mockup">
+    <div class="mockup-header">Entities/leads.md</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.8rem; line-height: 1.7; white-space: pre-wrap;">---
+tags: [entity, leads]
+table: leads
+subsystem: lead-management
+created: 2026-04-18
+---
+
+# leads
+
+## Schema
+| Column | Type | Constraints |
+|--------|------|------------|
+| id | uuid | PK, default uuid_generate_v4() |
+| tenant_id | uuid | FK → [[tenants]], NOT NULL |
+| psid | text | NOT NULL |
+| fb_name | text | nullable |
+| stage_id | uuid | FK → [[stages]], nullable |
+| tags | text[] | default '{}' |
+| created_at | timestamptz | NOT NULL |
+| last_active_at | timestamptz | NOT NULL |
+
+## Relationships
+- Belongs to [[tenants]] (tenant_id)
+- References [[stages]] (stage_id)
+- Has many [[lead_events]]
+- Has many [[conversations]]
+- Has many [[orders]]
+- Has many [[appointments]]
+
+## Used By Features
+- [[Lead Pipeline]]
+- [[Messenger Bot Engine]]
+
+## Used By Components
+- [[LeadsPage]]
+
+## RLS Policy
+`leads_all` — scoped to `current_tenant_id()`</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Component Note Template</h3>
+  <div class="mockup">
+    <div class="mockup-header">Components/LeadsPage.md</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.8rem; line-height: 1.7; white-space: pre-wrap;">---
+tags: [component, page, leads]
+file_path: src/app/(tenant)/app/leads/page.tsx
+route: /app/leads
+subsystem: lead-management
+created: 2026-04-18
+---
+
+# LeadsPage
+
+## Description
+Pipeline board view showing leads organized by stage columns.
+
+## Route
+`/app/leads` (tenant dashboard)
+
+## Data Consumed
+- [[leads]] — lead records
+- [[stages]] — stage definitions for columns
+
+## Part Of
+- [[Lead Pipeline]]
+
+## Source
+`src/app/(tenant)/app/leads/page.tsx`</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Flow Note Template</h3>
+  <div class="mockup">
+    <div class="mockup-header">Flows/Lead Qualification Flow.md</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 0.8rem; line-height: 1.7; white-space: pre-wrap;">---
+tags: [flow, leads, messenger]
+subsystem: lead-management
+created: 2026-04-18
+---
+
+# Lead Qualification Flow
+
+## Diagram
+```mermaid
+flowchart LR
+    A[Lead messages on Messenger] --> B[Bot sends action button]
+    B --> C[Lead opens form page]
+    C --> D[Lead submits form]
+    D --> E[lead_event: form_submit]
+    E --> F[AI evaluates context]
+    F --> G[Stage moves to Qualified]
+    G --> H[Notification sent via Messenger]
+```
+
+## Steps
+1. **Lead messages on Messenger** → [[Messenger Bot Engine]] receives webhook
+2. **Bot sends action button** → [[bot_flows]] config determines which button
+3. **Lead opens form page** → [[Action Pages]] serves form at tenant subdomain
+4. **Lead submits form** → [[action_submissions]] record created
+5. **Event logged** → [[lead_events]] with type `form_submit`
+6. **AI evaluates** → HuggingFace model assesses lead context
+7. **Stage moves** → [[leads]].stage_id updated to [[stages]] "Qualified"
+8. **Notification sent** → [[Messenger Bot Engine]] sends confirmation
+
+## Entities Involved
+- [[leads]], [[lead_events]], [[action_submissions]], [[stages]], [[bot_flows]]
+
+## Components Involved
+- [[ActionFormPage]], [[LeadsPage]]</div>
+  </div>
+</div>
