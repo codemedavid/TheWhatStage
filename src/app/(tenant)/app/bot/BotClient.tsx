@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   MessageCircle,
   ClipboardCheck,
+  GitBranch,
   Plus,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
@@ -17,11 +18,13 @@ import MessageThread, {
   type Message,
 } from "@/components/dashboard/MessageThread";
 import KnowledgePanel from "@/components/dashboard/knowledge/KnowledgePanel";
+import FlowPanel from "@/components/dashboard/flow/FlowPanel";
 
-type Tab = "knowledge" | "rules" | "test" | "review";
+type Tab = "knowledge" | "flow" | "rules" | "test" | "review";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "knowledge", label: "Knowledge Base", icon: BookOpen },
+  { id: "flow", label: "Flow Builder", icon: GitBranch },
   { id: "rules", label: "Rules & Persona", icon: ShieldCheck },
   { id: "test", label: "Test Chat", icon: MessageCircle },
   { id: "review", label: "Review", icon: ClipboardCheck },
@@ -213,6 +216,7 @@ export default function BotClient() {
 
       <div className="flex-1">
         {activeTab === "knowledge" && <KnowledgeTab />}
+        {activeTab === "flow" && <FlowPanel />}
         {activeTab === "rules" && <RulesTab />}
         {activeTab === "test" && <TestChatTab />}
         {activeTab === "review" && <ReviewTab />}
