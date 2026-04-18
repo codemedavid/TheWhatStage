@@ -40,7 +40,7 @@ interface BotRule {
 
 interface MessageRow {
   direction: string;
-  text: string;
+  text: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,8 +103,8 @@ function buildConversationHistory(messages: MessageRow[]): string {
   let totalChars = 0;
 
   for (const msg of chronological) {
-    const role = msg.direction === "inbound" ? "Lead" : "Bot";
-    const line = `${role}: ${msg.text}`;
+    const role = msg.direction === "in" ? "Lead" : "Bot";
+    const line = `${role}: ${msg.text ?? "(no text)"}`;
 
     if (totalChars + line.length > MAX_HISTORY_CHARS) break;
 

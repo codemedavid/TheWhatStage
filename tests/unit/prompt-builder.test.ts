@@ -156,8 +156,8 @@ describe("buildSystemPrompt", () => {
     setupMocks(
       [],
       [
-        { direction: "inbound", text: "Hello there!" },
-        { direction: "outbound", text: "Hi! How can I help?" },
+        { direction: "in", text: "Hello there!" },
+        { direction: "out", text: "Hi! How can I help?" },
       ]
     );
     const prompt = await buildSystemPrompt(makeContext());
@@ -174,7 +174,7 @@ describe("buildSystemPrompt", () => {
   it("layer 4 — long conversation history is truncated to ~8000 chars", async () => {
     // Create 20 messages each with ~1000 chars of text
     const longMessages = Array.from({ length: 20 }, (_, i) => ({
-      direction: i % 2 === 0 ? "inbound" : "outbound",
+      direction: i % 2 === 0 ? "in" : "out",
       text: "x".repeat(1000),
     }));
     setupMocks([], longMessages);
@@ -251,7 +251,7 @@ describe("buildSystemPrompt", () => {
   it("all 7 layers are present as sections in the prompt", async () => {
     setupMocks(
       [{ rule_text: "Be helpful", category: "tone" }],
-      [{ direction: "inbound", text: "Hi" }]
+      [{ direction: "in", text: "Hi" }]
     );
     const prompt = await buildSystemPrompt(
       makeContext({
