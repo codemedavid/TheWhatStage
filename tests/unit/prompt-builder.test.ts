@@ -1,0 +1,297 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mockFrom = vi.fn();
+
+vi.mock("@/lib/supabase/service", () => ({
+  createServiceClient: vi.fn(() => ({
+    from: mockFrom,
+  })),
+}));
+
+import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
+import type { PromptContext } from "@/lib/ai/prompt-builder";
+import type { CurrentPhase } from "@/lib/ai/phase-machine";
+import type { ChunkResult } from "@/lib/ai/vector-search";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function setupMocks(
+  rules: { rule_text: string; category: string }[] = [],
+  messages: { direction: string; text: string }[] = []
+) {
+  // bot_rules: select().eq().eq()
+  const rulesChain = {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ data: rules, error: null }),
+      }),
+    }),
+  };
+
+  // messages: select().eq().order().limit()
+  const messagesChain = {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        order: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({ data: messages, error: null }),
+        }),
+      }),
+    }),
+  };
+
+  mockFrom
+    .mockReturnValueOnce(rulesChain)
+    .mockReturnValueOnce(messagesChain);
+}
+
+const basePhase: CurrentPhase = {
+  conversationPhaseId: "cp-1",
+  phaseId: "phase-1",
+  name: "Greeting",
+  orderIndex: 0,
+  maxMessages: 10,
+  systemPrompt: "Welcome the lead warmly.",
+  tone: "friendly",
+  goals: "Open the conversation and build rapport",
+  transitionHint: "Advance when lead responds positively",
+  actionButtonIds: null,
+  messageCount: 3,
+};
+
+const baseChunks: ChunkResult[] = [
+  {
+    id: "chunk-1",
+    content: "Our product helps small businesses grow.",
+    similarity: 0.92,
+    metadata: {},
+  },
+  {
+    id: "chunk-2",
+    content: "We offer 24/7 support to all customers.",
+    similarity: 0.85,
+    metadata: {},
+  },
+];
+
+function makeContext(overrides: Partial<PromptContext> = {}): PromptContext {
+  return {
+    tenantId: "tenant-abc",
+    businessName: "Acme Corp",
+    currentPhase: basePhase,
+    conversationId: "conv-123",
+    ragChunks: baseChunks,
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe("buildSystemPrompt", () => {
+  beforeEach(() => {
+    mockFrom.mockReset();
+  });
+
+  it("layer 1 — base persona includes business name", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).toContain("Acme Corp");
+    expect(prompt).toContain("real human");
+    expect(prompt).toContain("conversational");
+  });
+
+  it("layer 2 — bot rules are rendered by category when present", async () => {
+    setupMocks(
+      [
+        { rule_text: "Always be polite", category: "tone" },
+        { rule_text: "Never discuss competitors", category: "boundary" },
+        { rule_text: "Ask clarifying questions", category: "behavior" },
+      ],
+      []
+    );
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).toContain("BOT RULES");
+    expect(prompt).toContain("TONE:");
+    expect(prompt).toContain("Always be polite");
+    expect(prompt).toContain("BOUNDARY:");
+    expect(prompt).toContain("Never discuss competitors");
+    expect(prompt).toContain("BEHAVIOR:");
+    expect(prompt).toContain("Ask clarifying questions");
+  });
+
+  it("layer 2 — empty bot rules section is omitted (no 'undefined' in output)", async () => {
+    setupMocks([], []);
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).not.toContain("undefined");
+    expect(prompt).not.toContain("BOT RULES");
+  });
+
+  it("layer 3 — current phase details included", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).toContain("CURRENT PHASE: Greeting");
+    expect(prompt).toContain("Welcome the lead warmly.");
+    expect(prompt).toContain("friendly");
+  });
+
+  it("layer 3 — phase goals and transition hint are included", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).toContain("Open the conversation and build rapport");
+    expect(prompt).toContain("Advance when lead responds positively");
+  });
+
+  it("layer 3 — message count and max messages are included", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).toContain("3");
+    expect(prompt).toContain("10");
+    expect(prompt).toContain("soft limit");
+  });
+
+  it("layer 4 — conversation history is formatted as Lead/Bot", async () => {
+    setupMocks(
+      [],
+      [
+        { direction: "inbound", text: "Hello there!" },
+        { direction: "outbound", text: "Hi! How can I help?" },
+      ]
+    );
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).toContain("Lead: Hello there!");
+    expect(prompt).toContain("Bot: Hi! How can I help?");
+  });
+
+  it("layer 4 — no messages shows placeholder", async () => {
+    setupMocks([], []);
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).toContain("No previous messages");
+  });
+
+  it("layer 4 — long conversation history is truncated to ~8000 chars", async () => {
+    // Create 20 messages each with ~1000 chars of text
+    const longMessages = Array.from({ length: 20 }, (_, i) => ({
+      direction: i % 2 === 0 ? "inbound" : "outbound",
+      text: "x".repeat(1000),
+    }));
+    setupMocks([], longMessages);
+    const prompt = await buildSystemPrompt(makeContext());
+    // Extract the conversation history section
+    const historyStart = prompt.indexOf("--- CONVERSATION HISTORY ---");
+    const historyEnd = prompt.indexOf("--- RETRIEVED KNOWLEDGE ---");
+    const historySection = prompt.slice(historyStart, historyEnd);
+    // The history section should not exceed 8000 chars plus some overhead for headers
+    expect(historySection.length).toBeLessThan(8500);
+  });
+
+  it("layer 5 — RAG chunks are numbered and rendered", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).toContain("[1]");
+    expect(prompt).toContain("Our product helps small businesses grow.");
+    expect(prompt).toContain("[2]");
+    expect(prompt).toContain("We offer 24/7 support to all customers.");
+  });
+
+  it("layer 5 — empty RAG chunks shows fallback message", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(makeContext({ ragChunks: [] }));
+    expect(prompt).toContain("No specific knowledge retrieved");
+  });
+
+  it("layer 6 — images are rendered with id, description, context_hint", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(
+      makeContext({
+        images: [
+          {
+            id: "img-1",
+            url: "https://example.com/img.jpg",
+            description: "Product overview diagram",
+            context_hint: "Show when explaining the product",
+          },
+        ],
+      })
+    );
+    expect(prompt).toContain("AVAILABLE IMAGES");
+    expect(prompt).toContain("img-1");
+    expect(prompt).toContain("Product overview diagram");
+    expect(prompt).toContain("Show when explaining the product");
+    expect(prompt).toContain("image_ids");
+  });
+
+  it("layer 6 — empty images array shows 'No images available'", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(makeContext({ images: [] }));
+    expect(prompt).toContain("No images available");
+  });
+
+  it("layer 6 — undefined images shows 'No images available'", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(makeContext({ images: undefined }));
+    expect(prompt).toContain("No images available");
+  });
+
+  it("layer 7 — response format JSON instructions are present", async () => {
+    setupMocks();
+    const prompt = await buildSystemPrompt(makeContext());
+    expect(prompt).toContain("RESPONSE FORMAT");
+    expect(prompt).toContain('"message"');
+    expect(prompt).toContain('"phase_action"');
+    expect(prompt).toContain('"confidence"');
+    expect(prompt).toContain('"image_ids"');
+    expect(prompt).toContain("stay");
+    expect(prompt).toContain("advance");
+    expect(prompt).toContain("escalate");
+  });
+
+  it("all 7 layers are present as sections in the prompt", async () => {
+    setupMocks(
+      [{ rule_text: "Be helpful", category: "tone" }],
+      [{ direction: "inbound", text: "Hi" }]
+    );
+    const prompt = await buildSystemPrompt(
+      makeContext({
+        images: [
+          {
+            id: "img-1",
+            url: "https://example.com/img.jpg",
+            description: "Test image",
+            context_hint: "For testing",
+          },
+        ],
+      })
+    );
+    // Layer 1 - base persona (no header, inline)
+    expect(prompt).toContain("Acme Corp");
+    // Layer 2 - bot rules
+    expect(prompt).toContain("BOT RULES");
+    // Layer 3 - current phase
+    expect(prompt).toContain("CURRENT PHASE");
+    // Layer 4 - conversation history
+    expect(prompt).toContain("CONVERSATION HISTORY");
+    // Layer 5 - retrieved knowledge
+    expect(prompt).toContain("RETRIEVED KNOWLEDGE");
+    // Layer 6 - available images
+    expect(prompt).toContain("AVAILABLE IMAGES");
+    // Layer 7 - response format
+    expect(prompt).toContain("RESPONSE FORMAT");
+  });
+
+  it("phase with null goals and transitionHint does not crash", async () => {
+    setupMocks();
+    const phaseWithNulls: CurrentPhase = {
+      ...basePhase,
+      goals: null,
+      transitionHint: null,
+    };
+    const prompt = await buildSystemPrompt(
+      makeContext({ currentPhase: phaseWithNulls })
+    );
+    expect(prompt).toContain("CURRENT PHASE: Greeting");
+    expect(prompt).not.toContain("undefined");
+  });
+});
