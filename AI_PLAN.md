@@ -56,18 +56,18 @@
 
 ## Phase 4: Conversation Engine & Phase System
 
-- [ ] Build `src/lib/ai/phase-templates.ts` — default phase templates per business_type
-- [ ] Build `src/lib/ai/phase-machine.ts` — phase state machine (track, advance, evaluate)
-- [ ] Build `src/lib/ai/prompt-builder.ts` — layered system prompt builder (7 layers)
-- [ ] Build `src/lib/ai/llm-client.ts` — HuggingFace text generation client (OpenAI-compatible)
-- [ ] Build `src/lib/ai/decision-parser.ts` — parse LLM decision JSON (phase_action, confidence, image_ids)
-- [ ] Build `src/lib/ai/conversation-engine.ts` — orchestrator: receive message → build prompt → call LLM → parse decision → update state → return response
-- [ ] Implement confidence-based escalation (< 0.4 → escalate, 0.4-0.7 → hedge, 0.7+ → normal)
-- [ ] Seed phase templates trigger (on tenant creation, based on business_type)
-- [ ] Unit tests: prompt builder
-- [ ] Unit tests: decision parser
-- [ ] Unit tests: phase machine transitions
-- [ ] Integration tests: simulate multi-turn conversation → verify phase advancement
+- [x] Build `src/lib/ai/phase-templates.ts` — default phase templates per business_type
+- [x] Build `src/lib/ai/phase-machine.ts` — phase state machine (track, advance, evaluate)
+- [x] Build `src/lib/ai/prompt-builder.ts` — layered system prompt builder (7 layers)
+- [x] Build `src/lib/ai/llm-client.ts` — HuggingFace text generation client (OpenAI-compatible)
+- [x] Build `src/lib/ai/decision-parser.ts` — parse LLM decision JSON (phase_action, confidence, image_ids)
+- [x] Build `src/lib/ai/conversation-engine.ts` — orchestrator: receive message → build prompt → call LLM → parse decision → update state → return response
+- [x] Implement confidence-based escalation (< 0.4 → escalate, 0.4-0.7 → hedge, 0.7+ → normal)
+- [x] Seed phase templates trigger (on tenant creation, based on business_type)
+- [x] Unit tests: prompt builder
+- [x] Unit tests: decision parser
+- [x] Unit tests: phase machine transitions
+- [x] Integration tests: simulate multi-turn conversation → verify phase advancement
 
 ---
 
