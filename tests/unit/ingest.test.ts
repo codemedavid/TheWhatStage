@@ -22,15 +22,12 @@ const mockInsert = vi.fn().mockReturnValue({ error: null });
 const mockUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockReturnValue({ error: null }),
 });
-const mockDelete = vi.fn().mockReturnValue({
-  eq: vi.fn().mockReturnValue({ error: null }),
-});
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === "knowledge_chunks") {
-        return { insert: mockInsert, delete: mockDelete };
+        return { insert: mockInsert };
       }
       if (table === "knowledge_docs") {
         return { update: mockUpdate };

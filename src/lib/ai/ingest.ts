@@ -15,6 +15,13 @@ export interface IngestParams {
 
 export async function ingestDocument(params: IngestParams): Promise<void> {
   const { docId, tenantId, type, kbType, buffer } = params;
+
+  // Validate type before any DB operations
+  const supportedTypes: IngestParams["type"][] = ["pdf", "docx", "xlsx"];
+  if (!supportedTypes.includes(type)) {
+    throw new Error(`Unsupported document type: ${type}`);
+  }
+
   const supabase = createServiceClient();
 
   try {
@@ -37,13 +44,11 @@ export async function ingestDocument(params: IngestParams): Promise<void> {
         texts = extractXlsxText(buffer);
         break;
       }
-      default:
-        throw new Error(`Unsupported document type: ${type}`);
     }
 
-    const embeddings = await embedBatch(texts);
+    const embeddings = await embedBatch(texts!);
 
-    const chunkRows = texts.map((content, i) => ({
+    const chunkRows = texts!.map((content, i) => ({
       doc_id: docId,
       tenant_id: tenantId,
       content,
@@ -66,7 +71,6 @@ export async function ingestDocument(params: IngestParams): Promise<void> {
       .eq("id", docId);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (message.startsWith("Unsupported document type")) throw err;
 
     await supabase
       .from("knowledge_docs")
