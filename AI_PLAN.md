@@ -73,14 +73,14 @@
 
 ## Phase 5: Image & Media System
 
-- [ ] Build `src/app/api/knowledge/images/route.ts` — knowledge images CRUD
-- [ ] Build `src/lib/ai/image-selector.ts` — select relevant images for LLM prompt
-- [ ] Build `src/lib/ai/response-parser.ts` — parse `[SEND_IMAGE:id]` from LLM response
-- [ ] Integrate image list into prompt builder (Layer 6)
-- [ ] Integrate image sending into Messenger Send API
-- [ ] Unit tests: image selector logic
-- [ ] Unit tests: response parser
-- [ ] Integration tests: conversation about product → correct image included
+- [x] Build `src/app/api/knowledge/images/route.ts` — knowledge images CRUD
+- [x] Build `src/lib/ai/image-selector.ts` — select relevant images for LLM prompt
+- [x] Build `src/lib/ai/response-parser.ts` — parse `[SEND_IMAGE:id]` from LLM response
+- [x] Integrate image list into prompt builder (Layer 6)
+- [x] Integrate image sending into Messenger Send API
+- [x] Unit tests: image selector logic
+- [x] Unit tests: response parser
+- [x] Integration tests: conversation about product → correct image included
 
 ---
 
