@@ -86,7 +86,7 @@ export async function getCurrentPhase(
     .single() as Promise<{ data: BotFlowPhaseRow | null; error: unknown }>);
 
   if (!firstPhase) {
-    throw new Error(`No bot flow phases found for tenant ${tenantId}`);
+    throw new Error("No bot flow phases configured for this tenant");
   }
 
   const { data: inserted } = await (supabase

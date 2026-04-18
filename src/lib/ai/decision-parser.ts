@@ -36,7 +36,7 @@ function extractJson(raw: string): unknown | null {
 }
 
 function clampConfidence(value: unknown): number {
-  const num = typeof value === "number" ? value : 0.5;
+  const num = typeof value === "number" && !Number.isNaN(value) ? value : 0.5;
   return Math.max(0.0, Math.min(1.0, num));
 }
 

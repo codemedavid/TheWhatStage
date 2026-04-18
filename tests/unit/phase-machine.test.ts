@@ -265,3 +265,37 @@ describe("incrementMessageCount", () => {
     expect(mockFrom).toHaveBeenNthCalledWith(2, "conversation_phases");
   });
 });
+
+describe("getCurrentPhase — error paths", () => {
+  it("throws when no phases configured for tenant", async () => {
+    // First call: no existing conversation_phase
+    mockFrom.mockReturnValueOnce({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    // Second call: no first phase found
+    mockFrom.mockReturnValueOnce({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: null, error: { message: "not found" } }),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    await expect(getCurrentPhase("conv-1", "tenant-1")).rejects.toThrow(
+      "No bot flow phases configured for this tenant"
+    );
+  });
+});

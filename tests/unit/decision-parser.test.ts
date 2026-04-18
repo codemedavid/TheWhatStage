@@ -151,4 +151,41 @@ describe("parseDecision", () => {
     const result = parseDecision(raw);
     expect(result.imageIds).toEqual(["img-1", "img-2"]);
   });
+
+  it("handles NaN confidence by falling back to 0.5", () => {
+    const raw = JSON.stringify({
+      message: "Test",
+      phase_action: "stay",
+      confidence: NaN,
+      image_ids: [],
+    });
+
+    const result = parseDecision(raw);
+    expect(result.confidence).toBe(0.5);
+  });
+
+  it("handles null message by falling back to empty string and escalating", () => {
+    const raw = JSON.stringify({
+      message: null,
+      phase_action: "stay",
+      confidence: 0.9,
+      image_ids: [],
+    });
+
+    const result = parseDecision(raw);
+    expect(result.message).toBe("");
+    expect(result.phaseAction).toBe("escalate");
+  });
+
+  it("handles non-object image_ids by falling back to empty array", () => {
+    const raw = JSON.stringify({
+      message: "Test",
+      phase_action: "stay",
+      confidence: 0.8,
+      image_ids: "not-an-array",
+    });
+
+    const result = parseDecision(raw);
+    expect(result.imageIds).toEqual([]);
+  });
 });

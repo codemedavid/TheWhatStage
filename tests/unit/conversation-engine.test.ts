@@ -224,4 +224,29 @@ describe("handleMessage", () => {
 
     expect(result.imageIds).toEqual(["img-1", "img-2", "img-3"]);
   });
+
+  it("hedges at exactly 0.4 confidence", async () => {
+    mockParseDecision.mockReturnValue({
+      message: "The price is $25.",
+      phaseAction: "stay",
+      confidence: 0.4,
+      imageIds: [],
+    });
+
+    const result = await handleMessage(defaultInput);
+    expect(result.message).not.toBe("The price is $25.");
+    expect(result.message).toContain("the price is $25.");
+  });
+
+  it("does not hedge at exactly 0.7 confidence", async () => {
+    mockParseDecision.mockReturnValue({
+      message: "The price is $25.",
+      phaseAction: "stay",
+      confidence: 0.7,
+      imageIds: [],
+    });
+
+    const result = await handleMessage(defaultInput);
+    expect(result.message).toBe("The price is $25.");
+  });
 });

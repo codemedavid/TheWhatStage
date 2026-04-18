@@ -123,4 +123,18 @@ describe("generateResponse", () => {
       "HUGGINGFACE_API_KEY is not set"
     );
   });
+
+  it("throws after exhausting all retries on 503", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => "Model loading",
+    });
+
+    await expect(generateResponse("System", "User")).rejects.toThrow(
+      "HuggingFace text generation API error (503)"
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(3); // initial + 2 retries
+  });
 });
