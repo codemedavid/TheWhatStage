@@ -65,6 +65,7 @@ export interface Database {
         tenant_id: string;
         lead_id: string;
         last_message_at: string;
+        needs_human: boolean;
       }>;
       messages: TableRow<{
         id: string;
