@@ -22,14 +22,45 @@ vi.mock("@/lib/ai/decision-parser", () => ({
   parseDecision: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/image-selector", () => ({
+  selectImages: vi.fn(),
+}));
+
+vi.mock("@/lib/ai/response-parser", () => ({
+  parseResponse: vi.fn(),
+}));
+
 const mockUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockResolvedValue({ error: null }),
 });
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      update: mockUpdate,
-    })),
+    from: vi.fn((table: string) => {
+      if (table === "tenants") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { max_images_per_response: 2 },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "knowledge_images") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }),
+        };
+      }
+      return {
+        update: mockUpdate,
+      };
+    }),
   })),
 }));
 
@@ -38,6 +69,9 @@ import { retrieveKnowledge } from "@/lib/ai/retriever";
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
 import { generateResponse } from "@/lib/ai/llm-client";
 import { parseDecision } from "@/lib/ai/decision-parser";
+import { selectImages } from "@/lib/ai/image-selector";
+import { parseResponse } from "@/lib/ai/response-parser";
+import { createServiceClient } from "@/lib/supabase/service";
 import { handleMessage } from "@/lib/ai/conversation-engine";
 
 const mockGetCurrentPhase = vi.mocked(getCurrentPhase);
@@ -47,6 +81,8 @@ const mockRetrieveKnowledge = vi.mocked(retrieveKnowledge);
 const mockBuildSystemPrompt = vi.mocked(buildSystemPrompt);
 const mockGenerateResponse = vi.mocked(generateResponse);
 const mockParseDecision = vi.mocked(parseDecision);
+const mockSelectImages = vi.mocked(selectImages);
+const mockParseResponse = vi.mocked(parseResponse);
 
 const defaultPhase = {
   conversationPhaseId: "cp-1",
@@ -88,6 +124,13 @@ beforeEach(() => {
     confidence: 0.85,
     imageIds: [],
   });
+  // New mocks for image-selector and response-parser
+  mockSelectImages.mockResolvedValue([]);
+  // parseResponse passes through decision.message as cleanMessage by default
+  mockParseResponse.mockImplementation((msg: string) => ({
+    cleanMessage: msg,
+    extractedImageIds: [],
+  }));
   mockIncrementMessageCount.mockResolvedValue(undefined);
 });
 
@@ -219,6 +262,42 @@ describe("handleMessage", () => {
       confidence: 0.9,
       imageIds: ["img-1", "img-2", "img-3"],
     });
+
+    // Override supabase to validate these image IDs for this test
+    vi.mocked(createServiceClient).mockReturnValueOnce({
+      from: vi.fn((table: string) => {
+        if (table === "tenants") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { max_images_per_response: 3 },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "knowledge_images") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                in: vi.fn().mockResolvedValue({
+                  data: [
+                    { id: "img-1", url: "https://img1.jpg" },
+                    { id: "img-2", url: "https://img2.jpg" },
+                    { id: "img-3", url: "https://img3.jpg" },
+                  ],
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        return { update: mockUpdate };
+      }),
+      rpc: vi.fn(),
+    } as ReturnType<typeof createServiceClient>);
 
     const result = await handleMessage(defaultInput);
 

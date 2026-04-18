@@ -1,8 +1,11 @@
 import { getCurrentPhase, advancePhase, incrementMessageCount } from "@/lib/ai/phase-machine";
 import { retrieveKnowledge } from "@/lib/ai/retriever";
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
+import type { KnowledgeImage } from "@/lib/ai/prompt-builder";
 import { generateResponse } from "@/lib/ai/llm-client";
 import { parseDecision } from "@/lib/ai/decision-parser";
+import { selectImages } from "@/lib/ai/image-selector";
+import { parseResponse } from "@/lib/ai/response-parser";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export interface EngineInput {
@@ -38,6 +41,7 @@ function applyHedging(message: string, confidence: number): string {
 
 export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   const { tenantId, businessName, conversationId, leadMessage } = input;
+  const supabase = createServiceClient();
 
   // Step 1: Get/initialize current phase
   const currentPhase = await getCurrentPhase(conversationId, tenantId);
@@ -45,29 +49,76 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   // Step 2: Retrieve relevant knowledge
   const retrieval = await retrieveKnowledge({ query: leadMessage, tenantId });
 
-  // Step 3: Build system prompt
+  // Step 3: Fetch tenant image config
+  const { data: tenantConfig } = await supabase
+    .from("tenants")
+    .select("max_images_per_response")
+    .eq("id", tenantId)
+    .single();
+
+  const maxImages = tenantConfig?.max_images_per_response ?? 2;
+
+  // Step 4: Select relevant images
+  const selectedImages = await selectImages({
+    tenantId,
+    leadMessage,
+    currentPhaseName: currentPhase.name,
+    retrievedChunks: retrieval.chunks,
+    maxImages,
+  });
+
+  // Convert to prompt builder format
+  const promptImages: KnowledgeImage[] = selectedImages.map((img) => ({
+    id: img.id,
+    url: img.url,
+    description: img.description,
+    context_hint: img.contextHint,
+  }));
+
+  // Step 5: Build system prompt (with images in Layer 6)
   const systemPrompt = await buildSystemPrompt({
     tenantId,
     businessName,
     currentPhase,
     conversationId,
     ragChunks: retrieval.chunks,
+    images: promptImages.length > 0 ? promptImages : undefined,
   });
 
-  // Step 4: Call LLM
+  // Step 6: Call LLM
   const llmResponse = await generateResponse(systemPrompt, leadMessage);
 
-  // Step 5: Parse decision
+  // Step 7: Parse decision
   const decision = parseDecision(llmResponse.content);
 
-  // Step 6: Apply side effects
+  // Step 8: Strip leaked SEND_IMAGE tokens from message
+  const parsed = parseResponse(decision.message);
+
+  // Step 9: Merge and deduplicate image IDs from decision + response parser
+  const mergedImageIds = [...new Set([...decision.imageIds, ...parsed.extractedImageIds])];
+
+  // Step 10: Validate image IDs against tenant's actual images
+  let validatedImageIds: string[] = [];
+  if (mergedImageIds.length > 0) {
+    const { data: validImages } = await supabase
+      .from("knowledge_images")
+      .select("id, url")
+      .eq("tenant_id", tenantId)
+      .in("id", mergedImageIds);
+
+    if (validImages) {
+      const validIdSet = new Set(validImages.map((img) => img.id));
+      validatedImageIds = mergedImageIds.filter((id) => validIdSet.has(id));
+    }
+  }
+
+  // Step 11: Apply side effects
   let escalated = false;
 
   if (decision.phaseAction === "advance") {
     await advancePhase(conversationId, tenantId);
   } else if (decision.phaseAction === "escalate") {
     escalated = true;
-    const supabase = createServiceClient();
     await supabase
       .from("conversations")
       .update({ needs_human: true })
@@ -75,18 +126,18 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   }
   // "stay" is a no-op
 
-  // Step 7: Increment message count
+  // Step 12: Increment message count
   await incrementMessageCount(currentPhase.conversationPhaseId);
 
-  // Step 8: Apply confidence hedging
-  const finalMessage = applyHedging(decision.message, decision.confidence);
+  // Step 13: Apply confidence hedging to cleaned message
+  const finalMessage = applyHedging(parsed.cleanMessage, decision.confidence);
 
-  // Step 9: Return EngineOutput
+  // Step 14: Return EngineOutput
   return {
     message: finalMessage,
     phaseAction: decision.phaseAction,
     confidence: decision.confidence,
-    imageIds: decision.imageIds,
+    imageIds: validatedImageIds,
     currentPhase: currentPhase.name,
     escalated,
   };
