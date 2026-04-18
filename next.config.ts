@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // Allow tenant subdomains in local dev
   allowedDevOrigins: ["*.lvh.me"],
 
+  // pdf-parse uses DOMMatrix (browser API) and must not be bundled
+  serverExternalPackages: ["pdf-parse"],
+
   // Allow FB profile picture CDN domains
   images: {
     remotePatterns: [
