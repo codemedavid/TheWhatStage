@@ -32,16 +32,66 @@ describe("embedText", () => {
     expect(body.inputs).toBe("Hello world");
   });
 
-  it("throws on API error", async () => {
+  it("throws on non-retryable API error", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: async () => "Bad request",
+    });
+
+    await expect(embedText("test")).rejects.toThrow(
+      "HuggingFace embedding API error (400): Bad request"
+    );
+    expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
+  it("retries on 503 then succeeds", async () => {
+    const fakeEmbedding = Array.from({ length: 4096 }, () => 0.5);
+    // First call: 503
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 503,
       text: async () => "Model is loading",
     });
+    // Retry: success
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [fakeEmbedding],
+    });
+
+    const result = await embedText("test");
+    expect(result).toHaveLength(EMBEDDING_DIM);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws after exhausting retries on 503", async () => {
+    const error503 = {
+      ok: false,
+      status: 503,
+      text: async () => "Model is loading",
+    };
+    // Initial + 2 retries = 3 calls
+    mockFetch
+      .mockResolvedValueOnce(error503)
+      .mockResolvedValueOnce(error503)
+      .mockResolvedValueOnce(error503);
 
     await expect(embedText("test")).rejects.toThrow(
       "HuggingFace embedding API error (503): Model is loading"
     );
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("handles flat array response from HF API (single string input)", async () => {
+    // Some HF endpoints return number[] instead of number[][] for single input
+    const flatEmbedding = Array.from({ length: 4096 }, () => 0.42);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => flatEmbedding,
+    });
+
+    const result = await embedText("test");
+    expect(result).toHaveLength(EMBEDDING_DIM);
   });
 });
 

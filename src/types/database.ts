@@ -232,7 +232,7 @@ export interface Database {
         Args: {
           query_embedding: number[];
           p_tenant_id: string;
-          p_kb_type: string;
+          p_kb_type: "general" | "product";
           p_top_k?: number;
           p_similarity_threshold?: number;
         };

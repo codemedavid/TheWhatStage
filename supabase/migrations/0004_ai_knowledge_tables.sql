@@ -59,7 +59,9 @@ create table knowledge_chunks (
 );
 
 -- HNSW index for fast cosine similarity search
-create index on knowledge_chunks using hnsw (embedding vector_cosine_ops);
+-- HNSW tuned for 1536-dim vectors: higher m and ef_construction improve recall
+create index on knowledge_chunks using hnsw (embedding vector_cosine_ops)
+  with (m = 24, ef_construction = 128);
 create index on knowledge_chunks (tenant_id, kb_type);
 
 -- =============================================================
@@ -137,20 +139,29 @@ returns table(
   similarity  float,
   metadata    jsonb
 )
-language sql
+language plpgsql
 stable
 security definer
 as $$
-  select
-    kc.id,
-    kc.content,
-    1 - (kc.embedding <=> query_embedding) as similarity,
-    kc.metadata
-  from knowledge_chunks kc
-  where kc.tenant_id = p_tenant_id
-    and kc.kb_type = p_kb_type
-    and kc.embedding is not null
-    and 1 - (kc.embedding <=> query_embedding) >= p_similarity_threshold
-  order by kc.embedding <=> query_embedding
-  limit p_top_k;
+begin
+  -- Defense in depth: verify caller has access to this tenant
+  if p_tenant_id <> current_tenant_id() then
+    raise exception 'unauthorized tenant access'
+      using errcode = 'P0001';
+  end if;
+
+  return query
+    select
+      kc.id,
+      kc.content,
+      1 - (kc.embedding <=> query_embedding) as similarity,
+      kc.metadata
+    from knowledge_chunks kc
+    where kc.tenant_id = p_tenant_id
+      and kc.kb_type = p_kb_type
+      and kc.embedding is not null
+      and 1 - (kc.embedding <=> query_embedding) >= p_similarity_threshold
+    order by kc.embedding <=> query_embedding
+    limit p_top_k;
+end;
 $$;

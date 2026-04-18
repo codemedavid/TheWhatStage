@@ -133,11 +133,16 @@ describe("Embedding Pipeline Integration", () => {
   });
 
   it("handles the full pipeline error gracefully when HF API is down", async () => {
-    mockFetch.mockResolvedValueOnce({
+    // 503 is retried — need initial + 2 retries = 3 mock responses
+    const error503 = {
       ok: false,
       status: 503,
       text: async () => "Service Unavailable",
-    });
+    };
+    mockFetch
+      .mockResolvedValueOnce(error503)
+      .mockResolvedValueOnce(error503)
+      .mockResolvedValueOnce(error503);
 
     await expect(embedText("test query")).rejects.toThrow(
       "HuggingFace embedding API error (503)"
