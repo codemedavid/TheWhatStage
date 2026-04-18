@@ -73,6 +73,38 @@ function mockGetCurrentPhase(data: typeof phaseRow) {
 }
 
 /**
+ * Mock: tenants SELECT (fetch max_images_per_response)
+ * Chain: .from().select().eq().single()
+ */
+function mockTenantConfig(maxImages = 2) {
+  mockFrom.mockReturnValueOnce({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: { max_images_per_response: maxImages },
+          error: null,
+        }),
+      }),
+    }),
+  });
+}
+
+/**
+ * Mock: knowledge_images tag filter SELECT (selectImages — step 1: tag filter)
+ * Chain: .from().select().eq().overlaps()
+ * Returns no candidates so selectImages bails early.
+ */
+function mockImageTagFilter(data: unknown[] = []) {
+  mockFrom.mockReturnValueOnce({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        overlaps: vi.fn().mockResolvedValue({ data, error: null }),
+      }),
+    }),
+  });
+}
+
+/**
  * Mock: bot_rules SELECT
  * Chain: .from().select().eq().eq()
  */
@@ -267,16 +299,22 @@ describe("Conversation Engine Integration", () => {
     // RPC 1 + 2: vector search (both targets, general + product in Promise.all)
     mockVectorSearch(0.75);
 
-    // DB calls 2 & 3 (in Promise.all inside buildSystemPrompt):
-    //   call 2: bot_rules SELECT
-    //   call 3: messages SELECT
+    // DB call 2: tenants SELECT (fetch max_images_per_response) — added in Phase 5
+    mockTenantConfig();
+
+    // DB call 3: knowledge_images tag filter (selectImages) — returns no candidates → early exit
+    mockImageTagFilter([]);
+
+    // DB calls 4 & 5 (in Promise.all inside buildSystemPrompt):
+    //   call 4: bot_rules SELECT
+    //   call 5: messages SELECT
     mockBotRules([]);
     mockMessages([]);
 
     // Fetch 2: LLM chat completions
     mockLLMFetch({ phase_action: "stay", confidence: 0.92 });
 
-    // DB calls 4 & 5: incrementMessageCount (read then write)
+    // DB calls 5 & 6: incrementMessageCount (read then write)
     mockIncrementRead(0);
     mockIncrementWrite();
 
@@ -302,9 +340,15 @@ describe("Conversation Engine Integration", () => {
     // RPC 1 + 2: vector search
     mockVectorSearch(0.75);
 
-    // DB calls 2 & 3 (buildSystemPrompt Promise.all):
-    //   call 2: bot_rules SELECT
-    //   call 3: messages SELECT
+    // DB call 2: tenants SELECT (fetch max_images_per_response) — added in Phase 5
+    mockTenantConfig();
+
+    // DB call 3: knowledge_images tag filter (selectImages) — returns no candidates → early exit
+    mockImageTagFilter([]);
+
+    // DB calls 4 & 5 (buildSystemPrompt Promise.all):
+    //   call 4: bot_rules SELECT
+    //   call 5: messages SELECT
     mockBotRules([]);
     mockMessages([]);
 
@@ -354,9 +398,15 @@ describe("Conversation Engine Integration", () => {
     // RPC 1 + 2: vector search
     mockVectorSearch(0.75);
 
-    // DB calls 2 & 3 (buildSystemPrompt Promise.all):
-    //   call 2: bot_rules SELECT
-    //   call 3: messages SELECT
+    // DB call 2: tenants SELECT (fetch max_images_per_response) — added in Phase 5
+    mockTenantConfig();
+
+    // DB call 3: knowledge_images tag filter (selectImages) — returns no candidates → early exit
+    mockImageTagFilter([]);
+
+    // DB calls 4 & 5 (buildSystemPrompt Promise.all):
+    //   call 4: bot_rules SELECT
+    //   call 5: messages SELECT
     mockBotRules([]);
     mockMessages([]);
 
