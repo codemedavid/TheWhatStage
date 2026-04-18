@@ -154,6 +154,7 @@ export interface Database {
         goals: string | null;
         transition_hint: string | null;
         action_button_ids: string[] | null;
+        image_attachment_ids: string[];
         created_at: string;
       }>;
       knowledge_docs: TableRow<{
