@@ -43,14 +43,14 @@
 
 ## Phase 3: RAG Retrieval Engine
 
-- [ ] Build `src/lib/ai/query-router.ts` — lightweight keyword/embedding heuristic for KB routing (no extra LLM call)
-- [ ] Build `src/lib/ai/retriever.ts` — agentic retriever: classify → target KB → search → re-rank
-- [ ] Implement re-ranking logic (relevance score threshold)
-- [ ] Implement query reformulation on low-confidence results
-- [ ] Implement no-result handling (clarifying question or escalate)
-- [ ] Unit tests: query router with various query types
-- [ ] Unit tests: retriever with mocked vector search
-- [ ] Integration tests: end-to-end query → ranked chunks
+- [x] Build `src/lib/ai/query-router.ts` — lightweight keyword/embedding heuristic for KB routing (no extra LLM call)
+- [x] Build `src/lib/ai/retriever.ts` — agentic retriever: classify → target KB → search → re-rank
+- [x] Implement re-ranking logic (relevance score threshold)
+- [x] Implement query reformulation on low-confidence results
+- [x] Implement no-result handling (clarifying question or escalate)
+- [x] Unit tests: query router with various query types
+- [x] Unit tests: retriever with mocked vector search
+- [x] Integration tests: end-to-end query → ranked chunks
 
 ---
 

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { retrieveKnowledge } from "@/lib/ai/retriever";
-import type { RetrievalResult } from "@/lib/ai/retriever";
 
 vi.mock("@/lib/ai/query-router", () => ({
   classifyQuery: vi.fn(),
