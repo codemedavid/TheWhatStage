@@ -26,6 +26,7 @@ export interface Database {
         fb_page_token: string | null;
         fb_app_secret: string | null;
         fb_verify_token: string | null;
+        max_images_per_response: number;
         created_at: string;
       }>;
       tenant_members: TableRow<{
@@ -183,6 +184,7 @@ export interface Database {
         description: string;
         tags: string[];
         context_hint: string | null;
+        embedding: number[] | null;
         created_at: string;
       }>;
       conversation_phases: TableRow<{
@@ -242,6 +244,22 @@ export interface Database {
           content: string;
           similarity: number;
           metadata: Record<string, unknown>;
+        }[];
+      };
+      match_knowledge_images: {
+        Args: {
+          query_embedding: number[];
+          p_tenant_id: string;
+          p_candidate_ids: string[];
+          p_top_k?: number;
+          p_similarity_threshold?: number;
+        };
+        Returns: {
+          id: string;
+          url: string;
+          description: string;
+          context_hint: string | null;
+          similarity: number;
         }[];
       };
     };
