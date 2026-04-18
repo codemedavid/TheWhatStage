@@ -41,6 +41,19 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient();
+  const ids = parsed.data.order.map((item) => item.id);
+
+  // Verify all IDs belong to this tenant before reordering
+  const { count, error: countError } = await service
+    .from("bot_flow_phases")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .in("id", ids);
+
+  if (countError || count !== ids.length) {
+    return NextResponse.json({ error: "Invalid phase IDs" }, { status: 400 });
+  }
+
   const rows = parsed.data.order.map((item) => ({
     id: item.id,
     tenant_id: tenantId,

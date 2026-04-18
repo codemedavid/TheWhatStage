@@ -66,7 +66,7 @@ const PhaseCard = forwardRef<HTMLDivElement, PhaseCardProps>(
         {/* Expanded form */}
         {expanded && (
           <div className="border-t border-[var(--ws-border)]">
-            <PhaseForm phase={phase} onSave={onSave} onDelete={onDelete} />
+            <PhaseForm key={phase.id + phase.created_at} phase={phase} onSave={onSave} onDelete={onDelete} />
           </div>
         )}
       </Card>

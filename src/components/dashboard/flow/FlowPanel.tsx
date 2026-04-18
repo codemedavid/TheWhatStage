@@ -9,6 +9,7 @@ export default function FlowPanel() {
   const {
     phases,
     loading,
+    error,
     createPhase,
     updatePhase,
     deletePhase,
@@ -28,18 +29,30 @@ export default function FlowPanel() {
 
   const handleCreatePhase = async () => {
     const nextIndex = phases.length;
-    await createPhase({
-      name: `Phase ${nextIndex + 1}`,
-      order_index: nextIndex,
-      max_messages: 3,
-      system_prompt: "Describe what the bot should do in this phase.",
-    });
+    try {
+      await createPhase({
+        name: `Phase ${nextIndex + 1}`,
+        order_index: nextIndex,
+        max_messages: 3,
+        system_prompt: "Describe what the bot should do in this phase.",
+      });
+    } catch {
+      // Error is already captured in the hook's error state
+    }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16" data-testid="flow-loading">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--ws-border-strong)] border-t-[var(--ws-accent)]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <p className="text-sm text-[var(--ws-danger)]">{error}</p>
       </div>
     );
   }
