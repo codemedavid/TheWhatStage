@@ -23,7 +23,12 @@ export interface QuickRepliesMessage {
   quickReplies: Array<{ title: string; payload: string }>;
 }
 
-export type OutboundMessage = TextMessage | ButtonMessage | QuickRepliesMessage;
+export interface ImageMessage {
+  type: "image";
+  url: string;
+}
+
+export type OutboundMessage = TextMessage | ButtonMessage | QuickRepliesMessage | ImageMessage;
 
 function buildMessageBody(message: OutboundMessage): Record<string, unknown> {
   switch (message.type) {
@@ -50,6 +55,17 @@ function buildMessageBody(message: OutboundMessage): Record<string, unknown> {
           title: qr.title,
           payload: qr.payload,
         })),
+      };
+
+    case "image":
+      return {
+        attachment: {
+          type: "image",
+          payload: {
+            url: message.url,
+            is_reusable: true,
+          },
+        },
       };
   }
 }
