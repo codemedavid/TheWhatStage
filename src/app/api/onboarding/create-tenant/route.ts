@@ -103,6 +103,7 @@ export async function POST(request: Request) {
     // Update user metadata with name
     await service.auth.admin.updateUserById(user.id, {
       user_metadata: { first_name: firstName, last_name: lastName },
+      app_metadata: { tenant_id: tenantId },
     });
   } catch (e) {
     console.error("Failed to update user metadata:", e);
