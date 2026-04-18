@@ -84,16 +84,18 @@
 
 ---
 
-## Phase 6: Knowledge Upload Dashboard
+## Phase 6: Knowledge Upload Dashboard ✅ COMPLETE
 
-- [ ] Build `src/components/dashboard/knowledge/DocumentUpload.tsx` — drag & drop file upload
-- [ ] Build `src/components/dashboard/knowledge/FaqEditor.tsx` — Q+A pair editor
-- [ ] Build `src/components/dashboard/knowledge/RichTextEditor.tsx` — Tiptap-based editor
-- [ ] Build `src/components/dashboard/knowledge/ProductKnowledge.tsx` — product entry form
-- [ ] Build `src/components/dashboard/knowledge/ProcessingStatus.tsx` — upload status indicator
-- [ ] Build `src/app/(tenant)/dashboard/knowledge/page.tsx` — knowledge base page with tabs
-- [ ] Component tests: each editor component
-- [ ] E2E tests: upload document → see processed → query via API
+- [x] Build `src/components/dashboard/knowledge/DocumentUpload.tsx` — drag & drop file upload
+- [x] Build `src/components/dashboard/knowledge/FaqEditor.tsx` — Q+A pair editor
+- [x] Build `src/components/dashboard/knowledge/RichTextEditor.tsx` — Tiptap-based editor
+- [x] Build `src/components/dashboard/knowledge/ProductKnowledge.tsx` — product entry form
+- [x] Build `src/components/dashboard/knowledge/ProcessingStatus.tsx` — upload status indicator
+- [x] Build `src/components/dashboard/knowledge/KnowledgePanel.tsx` — knowledge base panel with sub-tabs (wired into BotClient)
+- [x] Build `src/app/api/knowledge/docs/route.ts` — GET endpoint listing knowledge docs
+- [x] Build `src/app/api/knowledge/richtext/route.ts` — POST endpoint for rich text docs
+- [x] Component tests: each editor component
+- [x] E2E tests: upload document → see processed → query via API
 
 ---
 
