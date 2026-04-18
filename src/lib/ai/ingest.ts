@@ -8,7 +8,7 @@ import { extractXlsxText } from "@/lib/ai/processors/xlsx";
 export interface IngestParams {
   docId: string;
   tenantId: string;
-  type: "pdf" | "docx" | "xlsx";
+  type: "pdf" | "docx" | "xlsx" | "richtext";
   kbType: "general" | "product";
   buffer: Buffer;
 }
@@ -17,7 +17,7 @@ export async function ingestDocument(params: IngestParams): Promise<void> {
   const { docId, tenantId, type, kbType, buffer } = params;
 
   // Validate type before any DB operations
-  const supportedTypes: IngestParams["type"][] = ["pdf", "docx", "xlsx"];
+  const supportedTypes: IngestParams["type"][] = ["pdf", "docx", "xlsx", "richtext"];
   if (!supportedTypes.includes(type)) {
     throw new Error(`Unsupported document type: ${type}`);
   }
@@ -42,6 +42,11 @@ export async function ingestDocument(params: IngestParams): Promise<void> {
       }
       case "xlsx": {
         texts = extractXlsxText(buffer);
+        break;
+      }
+      case "richtext": {
+        const text = buffer.toString("utf-8");
+        texts = chunkText(text);
         break;
       }
     }
