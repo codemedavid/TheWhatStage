@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   MessageCircle,
   ClipboardCheck,
-  Upload,
   Plus,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
@@ -17,6 +16,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import MessageThread, {
   type Message,
 } from "@/components/dashboard/MessageThread";
+import KnowledgePanel from "@/components/dashboard/knowledge/KnowledgePanel";
 
 type Tab = "knowledge" | "rules" | "test" | "review";
 
@@ -37,24 +37,7 @@ const MOCK_MESSAGES: Message[] = [
 ];
 
 function KnowledgeTab() {
-  return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-[var(--ws-text-tertiary)]">
-          Upload documents to teach your bot about your business.
-        </p>
-        <Button variant="secondary">
-          <Upload className="h-4 w-4" />
-          Upload
-        </Button>
-      </div>
-      <EmptyState
-        icon={BookOpen}
-        title="No documents uploaded"
-        description="Add FAQs, product info, or any business documents. Your bot will use these to answer questions."
-      />
-    </div>
-  );
+  return <KnowledgePanel />;
 }
 
 function RulesTab() {
