@@ -80,9 +80,9 @@ export async function POST(request: Request) {
     })
   );
 
-  // @ts-expect-error — waitUntil exists on Vercel runtime but not in Node types
+  // @ts-expect-error waitUntil exists on Vercel runtime but not in Node types
   if (typeof globalThis.waitUntil === "function") {
-    // @ts-expect-error
+    // @ts-expect-error waitUntil is a Vercel runtime API
     globalThis.waitUntil(processPromise);
   } else {
     processPromise.catch((err) =>

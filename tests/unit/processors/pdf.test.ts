@@ -1,22 +1,22 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { extractPdfText } from "@/lib/ai/processors/pdf";
 
-vi.mock("pdf-parse", () => ({
-  default: vi.fn(),
+vi.mock("@/lib/ai/processors/pdf-parse-wrapper", () => ({
+  parsePdf: vi.fn(),
 }));
 
-import pdfParse from "pdf-parse";
-const mockPdfParse = vi.mocked(pdfParse);
+import { parsePdf } from "@/lib/ai/processors/pdf-parse-wrapper";
+const mockParsePdf = vi.mocked(parsePdf);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("extractPdfText", () => {
   it("extracts text from a PDF buffer", async () => {
-    mockPdfParse.mockResolvedValueOnce({
+    mockParsePdf.mockResolvedValueOnce({
       text: "Page 1 content.\n\nPage 2 content.",
       numpages: 2,
-      numrender: 2,
-      info: {},
-      metadata: null,
-      version: "1.0",
     });
 
     const buffer = Buffer.from("fake-pdf-data");
@@ -24,17 +24,13 @@ describe("extractPdfText", () => {
 
     expect(result.text).toBe("Page 1 content.\n\nPage 2 content.");
     expect(result.pageCount).toBe(2);
-    expect(mockPdfParse).toHaveBeenCalledWith(buffer);
+    expect(mockParsePdf).toHaveBeenCalledWith(buffer);
   });
 
   it("trims whitespace from extracted text", async () => {
-    mockPdfParse.mockResolvedValueOnce({
+    mockParsePdf.mockResolvedValueOnce({
       text: "  \n  Some content with extra whitespace  \n\n  ",
       numpages: 1,
-      numrender: 1,
-      info: {},
-      metadata: null,
-      version: "1.0",
     });
 
     const result = await extractPdfText(Buffer.from("fake"));
@@ -42,13 +38,9 @@ describe("extractPdfText", () => {
   });
 
   it("throws on empty PDF (no text extracted)", async () => {
-    mockPdfParse.mockResolvedValueOnce({
+    mockParsePdf.mockResolvedValueOnce({
       text: "   ",
       numpages: 1,
-      numrender: 1,
-      info: {},
-      metadata: null,
-      version: "1.0",
     });
 
     await expect(extractPdfText(Buffer.from("fake"))).rejects.toThrow(
@@ -57,7 +49,7 @@ describe("extractPdfText", () => {
   });
 
   it("throws on pdf-parse failure", async () => {
-    mockPdfParse.mockRejectedValueOnce(new Error("Invalid PDF"));
+    mockParsePdf.mockRejectedValueOnce(new Error("Invalid PDF"));
 
     await expect(extractPdfText(Buffer.from("bad"))).rejects.toThrow(
       "PDF extraction failed: Invalid PDF"

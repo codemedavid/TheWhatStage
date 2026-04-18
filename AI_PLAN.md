@@ -24,20 +24,20 @@
 
 ## Phase 2: Knowledge Ingestion Pipeline
 
-- [ ] Build `src/lib/ai/chunking.ts` — semantic text splitter (~500 tokens, 50 overlap)
-- [ ] Build `src/lib/ai/processors/pdf.ts` — PDF text extraction (pdf-parse)
-- [ ] Build `src/lib/ai/processors/docx.ts` — Word text extraction (mammoth)
-- [ ] Build `src/lib/ai/processors/xlsx.ts` — Excel extraction (SheetJS)
-- [ ] Build `src/lib/ai/processors/faq.ts` — FAQ pair ingestion (no chunking)
-- [ ] Build `src/lib/ai/processors/product.ts` — Product-to-chunk serializer
-- [ ] Build `src/lib/ai/ingest.ts` — orchestrator: detect type → extract → chunk → embed → store
-- [ ] Build `src/app/api/knowledge/upload/route.ts` — upload API endpoint (uses waitUntil() for async processing)
-- [ ] Build `src/app/api/knowledge/status/route.ts` — processing status polling endpoint
-- [ ] Build `src/app/api/knowledge/faq/route.ts` — FAQ CRUD endpoint
-- [ ] Build product-to-chunk sync hook in product CRUD (create/update → re-embed, delete → cascade)
-- [ ] Unit tests: each processor in isolation
-- [ ] Unit tests: chunking engine
-- [ ] Integration tests: upload PDF → chunks appear in DB with embeddings
+- [x] Build `src/lib/ai/chunking.ts` — semantic text splitter (~500 tokens, 50 overlap)
+- [x] Build `src/lib/ai/processors/pdf.ts` — PDF text extraction (pdf-parse)
+- [x] Build `src/lib/ai/processors/docx.ts` — Word text extraction (mammoth)
+- [x] Build `src/lib/ai/processors/xlsx.ts` — Excel extraction (SheetJS)
+- [x] Build `src/lib/ai/processors/faq.ts` — FAQ pair ingestion (no chunking)
+- [x] Build `src/lib/ai/processors/product.ts` — Product-to-chunk serializer
+- [x] Build `src/lib/ai/ingest.ts` — orchestrator: detect type → extract → chunk → embed → store
+- [x] Build `src/app/api/knowledge/upload/route.ts` — upload API endpoint (uses waitUntil() for async processing)
+- [x] Build `src/app/api/knowledge/status/route.ts` — processing status polling endpoint
+- [x] Build `src/app/api/knowledge/faq/route.ts` — FAQ CRUD endpoint
+- [x] Build product-to-chunk sync hook in product CRUD (create/update → re-embed, delete → cascade)
+- [x] Unit tests: each processor in isolation
+- [x] Unit tests: chunking engine
+- [x] Integration tests: upload PDF → chunks appear in DB with embeddings
 
 ---
 

@@ -1,4 +1,4 @@
-import pdfParse from "pdf-parse";
+import { parsePdf } from "./pdf-parse-wrapper";
 
 export interface PdfResult {
   text: string;
@@ -8,7 +8,7 @@ export interface PdfResult {
 export async function extractPdfText(buffer: Buffer): Promise<PdfResult> {
   let parsed;
   try {
-    parsed = await pdfParse(buffer);
+    parsed = await parsePdf(buffer);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`PDF extraction failed: ${message}`);
