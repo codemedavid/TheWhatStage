@@ -14,7 +14,7 @@ export interface CurrentPhase {
   messageCount: number;
 }
 
-interface BotFlowPhaseRow {
+interface CampaignPhaseRow {
   id: string;
   name: string;
   order_index: number;
@@ -30,13 +30,13 @@ interface ConversationPhaseWithJoin {
   id: string;
   phase_id: string;
   message_count: number;
-  bot_flow_phases: BotFlowPhaseRow;
+  campaign_phases: CampaignPhaseRow;
 }
 
 function mapToCurrentPhase(
   conversationPhaseId: string,
   messageCount: number,
-  phase: BotFlowPhaseRow
+  phase: CampaignPhaseRow
 ): CurrentPhase {
   return {
     conversationPhaseId,
@@ -55,15 +55,15 @@ function mapToCurrentPhase(
 
 export async function getCurrentPhase(
   conversationId: string,
-  tenantId: string
+  campaignId: string
 ): Promise<CurrentPhase> {
   const supabase = createServiceClient();
 
-  // Try to find the most recent conversation_phase
   const { data: existingRaw, error } = await supabase
     .from("conversation_phases")
-    .select("id, phase_id, message_count, bot_flow_phases(*)")
+    .select("id, phase_id, message_count, campaign_phases(*)")
     .eq("conversation_id", conversationId)
+    .is("exited_at", null)
     .order("entered_at", { ascending: false })
     .limit(1)
     .single();
@@ -74,23 +74,22 @@ export async function getCurrentPhase(
     return mapToCurrentPhase(
       existing.id,
       existing.message_count,
-      existing.bot_flow_phases
+      existing.campaign_phases
     );
   }
 
-  // No existing phase — initialize with first phase (order_index = 0)
   const { data: firstPhaseRaw } = await supabase
-    .from("bot_flow_phases")
+    .from("campaign_phases")
     .select("id, name, order_index, max_messages, system_prompt, tone, goals, transition_hint, action_button_ids")
-    .eq("tenant_id", tenantId)
+    .eq("campaign_id", campaignId)
     .order("order_index", { ascending: true })
     .limit(1)
     .single();
 
-  const firstPhase = firstPhaseRaw as BotFlowPhaseRow | null;
+  const firstPhase = firstPhaseRaw as CampaignPhaseRow | null;
 
   if (!firstPhase) {
-    throw new Error("No bot flow phases configured for this tenant");
+    throw new Error("No campaign phases configured");
   }
 
   const { data: insertedRaw } = await supabase
@@ -110,30 +109,39 @@ export async function getCurrentPhase(
 
 export async function advancePhase(
   conversationId: string,
-  tenantId: string
+  campaignId: string
 ): Promise<CurrentPhase> {
   const supabase = createServiceClient();
 
-  const current = await getCurrentPhase(conversationId, tenantId);
+  const current = await getCurrentPhase(conversationId, campaignId);
 
-  // Find the next phase by order_index (gt + order asc + limit 1)
+  await supabase
+    .from("conversation_phases")
+    .update({
+      exited_at: new Date().toISOString(),
+      exit_reason: "advanced",
+    })
+    .eq("id", current.conversationPhaseId);
+
   const { data: nextPhaseRaw } = await supabase
-    .from("bot_flow_phases")
+    .from("campaign_phases")
     .select("id, name, order_index, max_messages, system_prompt, tone, goals, transition_hint, action_button_ids")
-    .eq("tenant_id", tenantId)
+    .eq("campaign_id", campaignId)
     .gt("order_index", current.orderIndex)
     .order("order_index", { ascending: true })
     .limit(1)
     .single();
 
-  const nextPhase = nextPhaseRaw as BotFlowPhaseRow | null;
+  const nextPhase = nextPhaseRaw as CampaignPhaseRow | null;
 
-  // Already on the last phase — return unchanged
   if (!nextPhase) {
+    await supabase
+      .from("conversation_phases")
+      .update({ exited_at: null, exit_reason: null })
+      .eq("id", current.conversationPhaseId);
     return current;
   }
 
-  // Insert a new conversation_phases row for the next phase
   const { data: insertedNextRaw } = await supabase
     .from("conversation_phases")
     .insert({ conversation_id: conversationId, phase_id: nextPhase.id, message_count: 0 })
@@ -149,28 +157,34 @@ export async function advancePhase(
   return mapToCurrentPhase(insertedNext.id, insertedNext.message_count, nextPhase);
 }
 
+export async function exitPhase(
+  conversationPhaseId: string,
+  reason: "converted" | "dropped" | "human_handoff"
+): Promise<void> {
+  const supabase = createServiceClient();
+  await supabase
+    .from("conversation_phases")
+    .update({
+      exited_at: new Date().toISOString(),
+      exit_reason: reason,
+    })
+    .eq("id", conversationPhaseId);
+}
+
 export async function incrementMessageCount(
   conversationPhaseId: string
 ): Promise<void> {
   const supabase = createServiceClient();
-
-  // TODO: This read-then-write is not atomic. A Postgres RPC with
-  // `UPDATE conversation_phases SET message_count = message_count + 1 WHERE id = $1`
-  // would be race-safe. Acceptable for now since each conversation has one bot instance.
-  const { data: countRaw } = await supabase
+  const { data: current } = await supabase
     .from("conversation_phases")
     .select("message_count")
     .eq("id", conversationPhaseId)
     .single();
 
-  const data = countRaw as { message_count: number } | null;
-
-  if (!data) {
-    throw new Error(`Conversation phase ${conversationPhaseId} not found`);
+  if (current) {
+    await supabase
+      .from("conversation_phases")
+      .update({ message_count: current.message_count + 1 })
+      .eq("id", conversationPhaseId);
   }
-
-  await supabase
-    .from("conversation_phases")
-    .update({ message_count: data.message_count + 1 })
-    .eq("id", conversationPhaseId);
 }

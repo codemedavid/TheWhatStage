@@ -1,4 +1,5 @@
 import { getCurrentPhase, advancePhase, incrementMessageCount } from "@/lib/ai/phase-machine";
+import { getOrAssignCampaign } from "@/lib/ai/campaign-assignment";
 import { retrieveKnowledge } from "@/lib/ai/retriever";
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
 import type { KnowledgeImage } from "@/lib/ai/prompt-builder";
@@ -10,6 +11,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 
 export interface EngineInput {
   tenantId: string;
+  leadId: string;
   businessName: string;
   conversationId: string;
   leadMessage: string;
@@ -42,7 +44,7 @@ function applyHedging(message: string, confidence: number): string {
 }
 
 export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
-  const { tenantId, businessName, conversationId, leadMessage, leadMessageId } = input;
+  const { tenantId, leadId, businessName, conversationId, leadMessage, leadMessageId } = input;
   const supabase = createServiceClient();
 
   // Gate check: if bot is paused for human handoff, return early or auto-resume
@@ -110,8 +112,11 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     });
   }
 
+  // Step 0: Get or assign campaign for this lead
+  const campaignId = await getOrAssignCampaign(leadId, tenantId);
+
   // Step 1: Get/initialize current phase
-  const currentPhase = await getCurrentPhase(conversationId, tenantId);
+  const currentPhase = await getCurrentPhase(conversationId, campaignId);
 
   // Step 2: Retrieve relevant knowledge
   const retrieval = await retrieveKnowledge({ query: leadMessage, tenantId });
@@ -183,7 +188,7 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   let escalated = false;
 
   if (decision.phaseAction === "advance") {
-    await advancePhase(conversationId, tenantId);
+    await advancePhase(conversationId, campaignId);
   } else if (decision.phaseAction === "escalate") {
     escalated = true;
 
