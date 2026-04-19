@@ -13,7 +13,7 @@ export const getConversations = cache(
     const supabase = await createClient();
     const { data } = await supabase
       .from("conversations")
-      .select("id, tenant_id, lead_id, last_message_at")
+      .select("id, tenant_id, lead_id, last_message_at, needs_human, bot_paused_at, escalation_reason, escalation_message_id")
       .eq("tenant_id", tenantId)
       .order("last_message_at", { ascending: false })
       .limit(limit);

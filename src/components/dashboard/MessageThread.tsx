@@ -5,6 +5,9 @@ import { Send } from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
 import Badge from "@/components/ui/Badge";
+import EscalationBanner from "@/components/dashboard/EscalationBanner";
+import EscalationSystemMessage from "@/components/dashboard/EscalationSystemMessage";
+import ImageAttachmentPicker from "@/components/dashboard/ImageAttachmentPicker";
 
 export interface Message {
   id: string;
@@ -32,18 +35,36 @@ export default function MessageThread({
   messages,
   placeholder,
   onSend,
+  needsHuman,
+  botPausedAt,
+  escalationReason,
+  escalationMessageId,
+  onResume,
+  onSendWithImage,
 }: {
   header: ThreadHeader | null;
   messages: Message[];
   placeholder?: string;
   onSend?: (text: string) => void;
+  needsHuman?: boolean;
+  botPausedAt?: string | null;
+  escalationReason?: string | null;
+  escalationMessageId?: string | null;
+  onResume?: () => void;
+  onSendWithImage?: (text: string, imageUrl: string | null) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const handleSend = () => {
-    if (!draft.trim()) return;
-    onSend?.(draft.trim());
+    if (!draft.trim() && !imageUrl) return;
+    if (onSendWithImage) {
+      onSendWithImage(draft.trim(), imageUrl);
+    } else {
+      onSend?.(draft.trim());
+    }
     setDraft("");
+    setImageUrl(null);
   };
 
   if (!header) {
@@ -77,38 +98,52 @@ export default function MessageThread({
         )}
       </div>
 
+      {/* Escalation Banner */}
+      {(needsHuman !== undefined) && (
+        <EscalationBanner
+          needsHuman={!!needsHuman}
+          botPausedAt={botPausedAt ?? null}
+          onResume={onResume ?? (() => {})}
+        />
+      )}
+
       {/* Messages */}
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={clsx(
-              "flex",
-              msg.direction === "out" ? "justify-end" : "justify-start"
-            )}
-          >
+          <div key={msg.id}>
             <div
               className={clsx(
-                "max-w-[75%] rounded-2xl px-4 py-2.5",
-                msg.direction === "out"
-                  ? "bg-[var(--ws-accent)] text-white rounded-br-md"
-                  : "border border-[var(--ws-border)] bg-white text-[var(--ws-text-secondary)] rounded-bl-md"
+                "flex",
+                msg.direction === "out" ? "justify-end" : "justify-start"
               )}
             >
-              {msg.text && (
-                <p className="text-sm leading-relaxed">{msg.text}</p>
-              )}
-              <p
+              <div
                 className={clsx(
-                  "mt-1 text-[10px]",
+                  "max-w-[75%] rounded-2xl px-4 py-2.5",
                   msg.direction === "out"
-                    ? "text-white/70"
-                    : "text-[var(--ws-text-muted)]"
+                    ? "bg-[var(--ws-accent)] text-white rounded-br-md"
+                    : "border border-[var(--ws-border)] bg-white text-[var(--ws-text-secondary)] rounded-bl-md",
+                  escalationMessageId === msg.id && "border-l-4 border-l-amber-400"
                 )}
               >
-                {formatTime(msg.createdAt)}
-              </p>
+                {msg.text && (
+                  <p className="text-sm leading-relaxed">{msg.text}</p>
+                )}
+                <p
+                  className={clsx(
+                    "mt-1 text-[10px]",
+                    msg.direction === "out"
+                      ? "text-white/70"
+                      : "text-[var(--ws-text-muted)]"
+                  )}
+                >
+                  {formatTime(msg.createdAt)}
+                </p>
+              </div>
             </div>
+            {escalationMessageId === msg.id && (
+              <EscalationSystemMessage reason={escalationReason ?? null} />
+            )}
           </div>
         ))}
       </div>
@@ -116,6 +151,11 @@ export default function MessageThread({
       {/* Compose */}
       <div className="border-t border-[var(--ws-border)] px-4 py-3">
         <div className="flex items-center gap-2">
+          <ImageAttachmentPicker
+            selectedUrl={imageUrl}
+            onSelect={setImageUrl}
+            onClear={() => setImageUrl(null)}
+          />
           <input
             type="text"
             value={draft}
@@ -126,7 +166,7 @@ export default function MessageThread({
           />
           <button
             onClick={handleSend}
-            disabled={!draft.trim()}
+            disabled={!draft.trim() && !imageUrl}
             className="rounded-full bg-[var(--ws-accent)] p-2.5 text-white transition-opacity hover:opacity-90 disabled:opacity-30"
           >
             <Send className="h-4 w-4" />

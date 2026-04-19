@@ -43,6 +43,10 @@ export default async function InboxPage() {
       lastMessageAt: c.last_message_at,
       stageName: lead?.stage_id ? stageMap.get(lead.stage_id)?.name : undefined,
       stageColor: lead?.stage_id ? stageMap.get(lead.stage_id)?.color : undefined,
+      needsHuman: c.needs_human ?? false,
+      botPausedAt: c.bot_paused_at ?? null,
+      escalationReason: c.escalation_reason ?? null,
+      escalationMessageId: c.escalation_message_id ?? null,
     };
   });
 
@@ -61,7 +65,7 @@ export default async function InboxPage() {
 
   return (
     <InboxClient
-      conversations={convoSummaries}
+      initialConversations={convoSummaries}
       messagesByConvo={serializedMessages}
     />
   );

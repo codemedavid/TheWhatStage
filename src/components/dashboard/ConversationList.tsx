@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
+import Badge from "@/components/ui/Badge";
 
 export interface ConversationSummary {
   id: string;
@@ -12,6 +13,10 @@ export interface ConversationSummary {
   leadPic: string | null;
   lastMessage: string | null;
   lastMessageAt: string;
+  needsHuman?: boolean;
+  botPausedAt?: string | null;
+  escalationReason?: string | null;
+  escalationMessageId?: string | null;
 }
 
 function timeLabel(dateStr: string): string {
@@ -77,6 +82,12 @@ export default function ConversationList({
                 <span className="ml-2 shrink-0 text-xs text-[var(--ws-text-muted)]">
                   {timeLabel(convo.lastMessageAt)}
                 </span>
+                {convo.needsHuman && !convo.botPausedAt && (
+                  <span className="ml-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
+                )}
+                {convo.botPausedAt && (
+                  <Badge variant="muted">Paused</Badge>
+                )}
               </div>
               {convo.lastMessage && (
                 <p className="mt-0.5 truncate text-xs text-[var(--ws-text-tertiary)]">
