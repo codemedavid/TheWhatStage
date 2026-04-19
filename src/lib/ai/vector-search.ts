@@ -9,36 +9,34 @@ export interface ChunkResult {
 
 export interface SearchParams {
   queryEmbedding: number[];
+  ftsQuery: string;
   tenantId: string;
   kbType: "general" | "product";
   topK?: number;
-  similarityThreshold?: number;
 }
 
-/**
- * Search knowledge_chunks by cosine similarity using the
- * match_knowledge_chunks Supabase RPC function.
- */
+const SIMILARITY_THRESHOLD = 0.45;
+
 export async function searchKnowledge({
   queryEmbedding,
+  ftsQuery,
   tenantId,
   kbType,
-  topK = 5,
-  similarityThreshold = 0.3,
+  topK = 15,
 }: SearchParams): Promise<ChunkResult[]> {
   const supabase = createServiceClient();
 
-  const { data, error } = await supabase.rpc("match_knowledge_chunks", {
+  const { data, error } = await supabase.rpc("match_knowledge_chunks_hybrid", {
     query_embedding: queryEmbedding,
+    fts_query: ftsQuery,
     p_tenant_id: tenantId,
     p_kb_type: kbType,
     p_top_k: topK,
-    p_similarity_threshold: similarityThreshold,
   });
 
   if (error) {
     throw new Error(`Vector search failed: ${error.message}`);
   }
 
-  return data ?? [];
+  return (data ?? []).filter((c: ChunkResult) => c.similarity >= SIMILARITY_THRESHOLD);
 }

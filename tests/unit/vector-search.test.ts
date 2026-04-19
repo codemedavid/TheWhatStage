@@ -14,81 +14,82 @@ beforeEach(() => {
 });
 
 describe("searchKnowledge", () => {
-  it("calls the match_knowledge_chunks RPC with correct params", async () => {
+  it("calls match_knowledge_chunks_hybrid with correct params", async () => {
     const fakeResults = [
       { id: "chunk-1", content: "Answer about pricing", similarity: 0.92, metadata: {} },
       { id: "chunk-2", content: "Another answer", similarity: 0.85, metadata: {} },
     ];
-    mockRpc.mockReturnValue({
-      data: fakeResults,
-      error: null,
-    });
+    mockRpc.mockReturnValue({ data: fakeResults, error: null });
 
-    const queryEmbedding = Array.from({ length: 1536 }, () => 0.5);
+    const queryEmbedding = Array.from({ length: 1024 }, () => 0.5);
     const result = await searchKnowledge({
       queryEmbedding,
+      ftsQuery: "pricing answer",
       tenantId: "tenant-abc",
       kbType: "general",
       topK: 5,
-      similarityThreshold: 0.3,
     });
 
     expect(result).toEqual(fakeResults);
-    expect(mockRpc).toHaveBeenCalledWith("match_knowledge_chunks", {
+    expect(mockRpc).toHaveBeenCalledWith("match_knowledge_chunks_hybrid", {
       query_embedding: queryEmbedding,
+      fts_query: "pricing answer",
       p_tenant_id: "tenant-abc",
       p_kb_type: "general",
       p_top_k: 5,
-      p_similarity_threshold: 0.3,
     });
   });
 
-  it("uses default topK=5 and threshold=0.3", async () => {
+  it("uses default topK=15", async () => {
     mockRpc.mockReturnValue({ data: [], error: null });
 
-    const queryEmbedding = Array.from({ length: 1536 }, () => 0.1);
     await searchKnowledge({
-      queryEmbedding,
+      queryEmbedding: Array.from({ length: 1024 }, () => 0.1),
+      ftsQuery: "test query",
       tenantId: "tenant-abc",
       kbType: "product",
     });
 
-    expect(mockRpc).toHaveBeenCalledWith("match_knowledge_chunks", {
-      query_embedding: queryEmbedding,
+    expect(mockRpc).toHaveBeenCalledWith("match_knowledge_chunks_hybrid", {
+      query_embedding: expect.any(Array),
+      fts_query: "test query",
       p_tenant_id: "tenant-abc",
       p_kb_type: "product",
-      p_top_k: 5,
-      p_similarity_threshold: 0.3,
+      p_top_k: 15,
     });
   });
 
-  it("throws on Supabase RPC error", async () => {
+  it("filters out chunks with similarity below 0.45", async () => {
     mockRpc.mockReturnValue({
-      data: null,
-      error: { message: "function not found" },
+      data: [
+        { id: "c1", content: "Good", similarity: 0.9, metadata: {} },
+        { id: "c2", content: "Weak", similarity: 0.3, metadata: {} },
+        { id: "c3", content: "Border", similarity: 0.45, metadata: {} },
+      ],
+      error: null,
     });
 
-    const queryEmbedding = Array.from({ length: 1536 }, () => 0.1);
-
-    await expect(
-      searchKnowledge({
-        queryEmbedding,
-        tenantId: "tenant-abc",
-        kbType: "general",
-      })
-    ).rejects.toThrow("Vector search failed: function not found");
-  });
-
-  it("returns empty array when no results match threshold", async () => {
-    mockRpc.mockReturnValue({ data: [], error: null });
-
-    const queryEmbedding = Array.from({ length: 1536 }, () => 0.1);
     const result = await searchKnowledge({
-      queryEmbedding,
-      tenantId: "tenant-abc",
+      queryEmbedding: Array.from({ length: 1024 }, () => 0.1),
+      ftsQuery: "query",
+      tenantId: "t1",
       kbType: "general",
     });
 
-    expect(result).toEqual([]);
+    expect(result).toHaveLength(2);
+    expect(result.map((r) => r.id)).toEqual(["c1", "c3"]);
+  });
+
+  it("throws on Supabase RPC error", async () => {
+    mockRpc.mockReturnValue({ data: null, error: { message: "function not found" } });
+
+    await expect(
+      searchKnowledge({
+        queryEmbedding: Array.from({ length: 1024 }, () => 0.1),
+        ftsQuery: "query",
+        tenantId: "t1",
+        kbType: "general",
+      })
+    ).rejects.toThrow("Vector search failed: function not found");
   });
 });
