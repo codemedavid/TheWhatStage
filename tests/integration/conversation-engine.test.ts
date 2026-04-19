@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleMessage } from "@/lib/ai/conversation-engine";
 
 // ---------------------------------------------------------------------------
-// Globals: fetch + Supabase
+// Globals: fetch + Supabase + HuggingFace SDK
 // ---------------------------------------------------------------------------
 
 const mockFetch = vi.fn();
@@ -18,19 +18,29 @@ vi.mock("@/lib/supabase/service", () => ({
   })),
 }));
 
+const mockFeatureExtraction = vi.fn();
+vi.mock("@huggingface/inference", () => ({
+  InferenceClient: vi.fn().mockImplementation(() => ({
+    featureExtraction: mockFeatureExtraction,
+  })),
+}));
+
+vi.mock("@/lib/ai/campaign-assignment", () => ({
+  getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
+}));
+
 // ---------------------------------------------------------------------------
 // Shared fixtures
 // ---------------------------------------------------------------------------
 
-// The embedding API returns 4096-dim vectors; embedText truncates to 1536.
-const API_DIM = 4096;
-const fakeEmbedding = Array.from({ length: API_DIM }, (_, i) => Math.sin(i) * 0.01);
+// BAAI/bge-large-en-v1.5 returns 1024-dim vectors directly.
+const fakeEmbedding = Array.from({ length: 1024 }, (_, i) => Math.sin(i) * 0.01);
 
 const phaseRow = {
   id: "cp-1",
   phase_id: "phase-1",
   message_count: 0,
-  bot_flow_phases: {
+  campaign_phases: {
     id: "phase-1",
     name: "Greet",
     order_index: 0,
@@ -45,6 +55,7 @@ const phaseRow = {
 
 const engineInput = {
   tenantId: "tenant-1",
+  leadId: "lead-1",
   businessName: "Acme Corp",
   conversationId: "conv-1",
   leadMessage: "Hello there",
@@ -74,15 +85,17 @@ function mockConversationGateCheck(botPausedAt: string | null = null) {
 
 /**
  * Mock: conversation_phases SELECT (getCurrentPhase)
- * Chain: .from().select().eq().order().limit().single()
+ * Chain: .from().select().eq().is().order().limit().single()
  */
 function mockGetCurrentPhase(data: typeof phaseRow) {
   mockFrom.mockReturnValueOnce({
     select: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
-        order: vi.fn().mockReturnValue({
-          limit: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data, error: null }),
+        is: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data, error: null }),
+            }),
           }),
         }),
       }),
@@ -146,6 +159,23 @@ function mockMessages(data: unknown[] = []) {
       eq: vi.fn().mockReturnValue({
         order: vi.fn().mockReturnValue({
           limit: vi.fn().mockResolvedValue({ data, error: null }),
+        }),
+      }),
+    }),
+  });
+}
+
+/**
+ * Mock: tenants SELECT (buildSystemPrompt — fetch persona_tone + custom_instructions)
+ * Chain: .from().select().eq().single()
+ */
+function mockTenantPersona() {
+  mockFrom.mockReturnValueOnce({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: { persona_tone: "friendly", custom_instructions: null },
+          error: null,
         }),
       }),
     }),
@@ -238,13 +268,10 @@ function mockInsertConversationPhase(data: unknown) {
 }
 
 /**
- * Mock fetch: embedding API call — returns a 4096-dim vector.
+ * Mock SDK: embedding call — returns a 1024-dim vector.
  */
 function mockEmbeddingFetch() {
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    json: async () => [fakeEmbedding],
-  });
+  mockFeatureExtraction.mockResolvedValueOnce(fakeEmbedding);
 }
 
 /**
@@ -306,7 +333,7 @@ function mockLLMFetch(overrides: {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv("HUGGINGFACE_API_KEY", "test-key");
+  vi.stubEnv("HF_TOKEN", "test-key");
 });
 
 // ---------------------------------------------------------------------------
@@ -336,11 +363,13 @@ describe("Conversation Engine Integration", () => {
     // DB call 3: knowledge_images tag filter (selectImages) — returns no candidates → early exit
     mockImageTagFilter([]);
 
-    // DB calls 4 & 5 (in Promise.all inside buildSystemPrompt):
+    // DB calls 4, 5 & 6 (in Promise.all inside buildSystemPrompt):
     //   call 4: bot_rules SELECT
     //   call 5: messages SELECT
+    //   call 6: tenants SELECT (persona_tone + custom_instructions)
     mockBotRules([]);
     mockMessages([]);
+    mockTenantPersona();
 
     // Fetch 2: LLM chat completions
     mockLLMFetch({ phase_action: "stay", confidence: 0.92 });
@@ -380,11 +409,13 @@ describe("Conversation Engine Integration", () => {
     // DB call 3: knowledge_images tag filter (selectImages) — returns no candidates → early exit
     mockImageTagFilter([]);
 
-    // DB calls 4 & 5 (buildSystemPrompt Promise.all):
+    // DB calls 4, 5 & 6 (buildSystemPrompt Promise.all):
     //   call 4: bot_rules SELECT
     //   call 5: messages SELECT
+    //   call 6: tenants SELECT (persona_tone + custom_instructions)
     mockBotRules([]);
     mockMessages([]);
+    mockTenantPersona();
 
     // Fetch 2: LLM — returns advance
     mockLLMFetch({ phase_action: "advance", confidence: 0.88 });
@@ -392,7 +423,13 @@ describe("Conversation Engine Integration", () => {
     // advancePhase side effect:
     //   call 4: getCurrentPhase (internally called by advancePhase)
     mockGetCurrentPhase(phaseRow);
-    //   call 5: bot_flow_phases SELECT with gt() (next phase)
+    //   call 5: conversation_phases UPDATE (set exited_at)
+    mockFrom.mockReturnValueOnce({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    });
+    //   call 6: campaign_phases SELECT with gt() (next phase)
     const nextPhaseData = {
       id: "phase-2",
       name: "Qualify",
@@ -441,11 +478,13 @@ describe("Conversation Engine Integration", () => {
     // DB call 3: knowledge_images tag filter (selectImages) — returns no candidates → early exit
     mockImageTagFilter([]);
 
-    // DB calls 4 & 5 (buildSystemPrompt Promise.all):
+    // DB calls 4, 5 & 6 (buildSystemPrompt Promise.all):
     //   call 4: bot_rules SELECT
     //   call 5: messages SELECT
+    //   call 6: tenants SELECT (persona_tone + custom_instructions)
     mockBotRules([]);
     mockMessages([]);
+    mockTenantPersona();
 
     // Fetch 2: LLM — returns low confidence / escalate
     // Note: decision-parser overrides phase_action to "escalate" when confidence < 0.4

@@ -37,6 +37,10 @@ vi.mock("@/lib/supabase/service", () => ({
   })),
 }));
 
+vi.mock("@/lib/ai/campaign-assignment", () => ({
+  getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
 
@@ -134,6 +138,7 @@ describe("Full conversation with images", () => {
 
     const result = await handleMessage({
       tenantId: "t-1",
+      leadId: "lead-1",
       businessName: "RunShop",
       conversationId: "conv-1",
       leadMessage: "Do you have running shoes?",
@@ -214,6 +219,7 @@ describe("Full conversation with images", () => {
 
     const result = await handleMessage({
       tenantId: "t-1",
+      leadId: "lead-1",
       businessName: "Shop",
       conversationId: "conv-1",
       leadMessage: "what do you recommend?",

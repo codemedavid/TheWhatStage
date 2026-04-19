@@ -1,14 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({
-      auth: { getUser: mockGetUser },
-    })
-  ),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
+
+const mockResolveSession = vi.mocked(resolveSession);
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
@@ -36,7 +33,7 @@ describe("GET /api/knowledge/images/list", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "No session" } });
+    mockResolveSession.mockResolvedValue(null);
 
     const { GET } = await import("@/app/api/knowledge/images/list/route");
     const response = await GET(new Request("http://localhost/api/knowledge/images/list"));
@@ -45,10 +42,7 @@ describe("GET /api/knowledge/images/list", () => {
   });
 
   it("returns knowledge images list", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { GET } = await import("@/app/api/knowledge/images/list/route");
     const response = await GET(new Request("http://localhost/api/knowledge/images/list"));

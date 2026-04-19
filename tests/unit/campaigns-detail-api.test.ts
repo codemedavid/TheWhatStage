@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
+const mockResolveSession = vi.mocked(resolveSession);
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({ auth: { getUser: mockGetUser } })
-  ),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/service", () => ({
@@ -22,7 +21,7 @@ describe("GET /api/campaigns/[id]", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "No session" } });
+    mockResolveSession.mockResolvedValue(null);
     const { GET } = await import("@/app/api/campaigns/[id]/route");
     const req = new Request("http://localhost/api/campaigns/camp-1");
     const res = await GET(req, { params });
@@ -30,10 +29,7 @@ describe("GET /api/campaigns/[id]", () => {
   });
 
   it("returns campaign details", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const campaign = { id: "camp-1", name: "Main", tenant_id: "t1" };
     mockFrom.mockReturnValue({
@@ -63,10 +59,7 @@ describe("PATCH /api/campaigns/[id]", () => {
   });
 
   it("updates campaign fields", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const updated = { id: "camp-1", name: "Updated Name", status: "active" };
     mockFrom.mockReturnValue({
@@ -101,10 +94,7 @@ describe("DELETE /api/campaigns/[id]", () => {
   });
 
   it("deletes a campaign", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     mockFrom.mockReturnValue({
       delete: vi.fn().mockReturnValue({

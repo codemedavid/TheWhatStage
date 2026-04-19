@@ -1,17 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
+}));
+
+const mockResolveSession = vi.mocked(resolveSession);
+
 const mockFrom = vi.fn();
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({
-      auth: { getUser: mockGetUser },
-    })
-  ),
-}));
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
@@ -59,7 +57,7 @@ describe("PATCH /api/bot/phases/[id]", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "No session" } });
+    mockResolveSession.mockResolvedValue(null);
 
     const { PATCH } = await import("@/app/api/bot/phases/[id]/route");
     const response = await PATCH(
@@ -75,10 +73,7 @@ describe("PATCH /api/bot/phases/[id]", () => {
   });
 
   it("updates a phase", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { PATCH } = await import("@/app/api/bot/phases/[id]/route");
     const response = await PATCH(
@@ -102,10 +97,7 @@ describe("DELETE /api/bot/phases/[id]", () => {
   });
 
   it("deletes a phase", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { DELETE: deleteFn } = await import("@/app/api/bot/phases/[id]/route");
     const response = await deleteFn(

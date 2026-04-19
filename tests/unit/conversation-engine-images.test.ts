@@ -40,6 +40,10 @@ vi.mock("@/lib/ai/response-parser", () => ({
   parseResponse: (...args: unknown[]) => mockParseResponse(...args),
 }));
 
+vi.mock("@/lib/ai/campaign-assignment", () => ({
+  getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
+}));
+
 const mockSupabaseFrom = vi.fn();
 const mockSupabaseRpc = vi.fn();
 vi.mock("@/lib/supabase/service", () => ({
@@ -149,6 +153,7 @@ describe("handleMessage — image integration", () => {
 
     await handleMessage({
       tenantId: "t-1",
+      leadId: "lead-1",
       businessName: "ShoeStore",
       conversationId: "conv-1",
       leadMessage: "show me shoes",
@@ -229,6 +234,7 @@ describe("handleMessage — image integration", () => {
 
     const result = await handleMessage({
       tenantId: "t-1",
+      leadId: "lead-1",
       businessName: "ShoeStore",
       conversationId: "conv-1",
       leadMessage: "show me products",
@@ -299,6 +305,7 @@ describe("handleMessage — image integration", () => {
 
     const result = await handleMessage({
       tenantId: "t-1",
+      leadId: "lead-1",
       businessName: "Test",
       conversationId: "conv-1",
       leadMessage: "products",
@@ -368,6 +375,7 @@ describe("handleMessage — image integration", () => {
 
     const result = await handleMessage({
       tenantId: "t-1",
+      leadId: "lead-1",
       businessName: "Test",
       conversationId: "conv-1",
       leadMessage: "show me",
@@ -379,6 +387,7 @@ describe("handleMessage — image integration", () => {
   it("returns empty imageIds when no images are relevant", async () => {
     const result = await handleMessage({
       tenantId: "t-1",
+      leadId: "lead-1",
       businessName: "Test",
       conversationId: "conv-1",
       leadMessage: "hello",

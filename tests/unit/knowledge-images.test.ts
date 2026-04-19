@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
 // --- Mocks ---
-const mockGetUser = vi.fn();
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
-    auth: { getUser: mockGetUser },
-  })),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
+
+const mockResolveSession = vi.mocked(resolveSession);
 
 const mockInsert = vi.fn();
 const mockSelect = vi.fn();
@@ -51,105 +51,98 @@ beforeEach(() => {
 
 import { POST, GET } from "@/app/api/knowledge/images/route";
 
-describe("POST /api/knowledge/images", () => {
-  const authedUser = {
-    data: { user: { id: "user-1", app_metadata: { tenant_id: "t-1" } } },
-    error: null,
+/**
+ * Build a Request whose formData() is synchronously mocked.
+ * This avoids jsdom multipart parsing issues with Blob bodies.
+ */
+function makeRequest(fields: Record<string, string | File | null>): Request {
+  const req = new Request("http://localhost/api/knowledge/images", {
+    method: "POST",
+  });
+  const mockFd = {
+    get: (key: string) => fields[key] ?? null,
   };
+  vi.spyOn(req, "formData").mockResolvedValue(mockFd as unknown as FormData);
+  return req;
+}
 
-  function makeRequest(formData: FormData): Request {
-    return new Request("http://localhost/api/knowledge/images", {
-      method: "POST",
-      body: formData,
-    });
-  }
+function makeFileField(content = "fake-image") {
+  return {
+    size: content.length,
+    arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(content.length)),
+    name: "test.jpg",
+    type: "image/jpeg",
+  } as unknown as File;
+}
 
+describe("POST /api/knowledge/images", () => {
   it("returns 401 if user is not authenticated", async () => {
-    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+    mockResolveSession.mockResolvedValueOnce(null);
 
-    const fd = new FormData();
-    fd.append("file", new Blob(["fake"], { type: "image/png" }), "test.png");
-    fd.append("description", "A test image");
-    fd.append("tags", JSON.stringify(["test"]));
-
-    const response = await POST(makeRequest(fd));
+    const response = await POST(makeRequest({
+      file: makeFileField(),
+      description: "A test image",
+      tags: JSON.stringify(["test"]),
+    }));
     expect(response.status).toBe(401);
   });
 
-  it("returns 403 if user has no tenant", async () => {
-    mockGetUser.mockResolvedValueOnce({
-      data: { user: { id: "user-1", app_metadata: {} } },
-      error: null,
-    });
-
-    const fd = new FormData();
-    fd.append("file", new Blob(["fake"], { type: "image/png" }), "test.png");
-    fd.append("description", "A test image");
-    fd.append("tags", JSON.stringify(["test"]));
-
-    const response = await POST(makeRequest(fd));
-    expect(response.status).toBe(403);
-  });
-
   it("returns 400 if description is missing", async () => {
-    mockGetUser.mockResolvedValueOnce(authedUser);
+    mockResolveSession.mockResolvedValueOnce({ userId: "user-1", tenantId: "t-1" });
 
-    const fd = new FormData();
-    fd.append("file", new Blob(["fake"], { type: "image/png" }), "test.png");
-    fd.append("tags", JSON.stringify(["test"]));
-
-    const response = await POST(makeRequest(fd));
+    const response = await POST(makeRequest({
+      file: makeFileField(),
+      tags: JSON.stringify(["test"]),
+    }));
     expect(response.status).toBe(400);
   });
 
   it("returns 400 if tags is empty array", async () => {
-    mockGetUser.mockResolvedValueOnce(authedUser);
+    mockResolveSession.mockResolvedValueOnce({ userId: "user-1", tenantId: "t-1" });
 
-    const fd = new FormData();
-    fd.append("file", new Blob(["fake"], { type: "image/png" }), "test.png");
-    fd.append("description", "desc");
-    fd.append("tags", JSON.stringify([]));
-
-    const response = await POST(makeRequest(fd));
+    const response = await POST(makeRequest({
+      file: makeFileField(),
+      description: "desc",
+      tags: JSON.stringify([]),
+    }));
     expect(response.status).toBe(400);
   });
 
   it("returns 400 if file is missing", async () => {
-    mockGetUser.mockResolvedValueOnce(authedUser);
+    mockResolveSession.mockResolvedValueOnce({ userId: "user-1", tenantId: "t-1" });
 
-    const fd = new FormData();
-    fd.append("description", "desc");
-    fd.append("tags", JSON.stringify(["test"]));
-
-    const response = await POST(makeRequest(fd));
+    const response = await POST(makeRequest({
+      file: null,
+      description: "desc",
+      tags: JSON.stringify(["test"]),
+    }));
     expect(response.status).toBe(400);
   });
 
   it("returns 400 for invalid file type", async () => {
-    mockGetUser.mockResolvedValueOnce(authedUser);
+    mockResolveSession.mockResolvedValueOnce({ userId: "user-1", tenantId: "t-1" });
     mockValidateImageFile.mockImplementationOnce(() => {
       const err = new Error("Invalid file type: text/plain");
       err.name = "ValidationError";
       throw err;
     });
 
-    const fd = new FormData();
-    fd.append("file", new Blob(["fake"], { type: "text/plain" }), "test.txt");
-    fd.append("description", "desc");
-    fd.append("tags", JSON.stringify(["test"]));
-
-    const response = await POST(makeRequest(fd));
+    const response = await POST(makeRequest({
+      file: makeFileField(),
+      description: "desc",
+      tags: JSON.stringify(["test"]),
+    }));
     expect(response.status).toBe(400);
   });
 
   it("returns 201 with image record on success", async () => {
-    mockGetUser.mockResolvedValueOnce(authedUser);
+    mockResolveSession.mockResolvedValueOnce({ userId: "user-1", tenantId: "t-1" });
     mockValidateImageFile.mockImplementationOnce(() => {});
     mockUploadImage.mockResolvedValueOnce({
       url: "https://res.cloudinary.com/test/image/upload/v1/whatstage/t-1/knowledge/img.jpg",
       publicId: "whatstage/t-1/knowledge/img",
     });
-    mockEmbedText.mockResolvedValueOnce(new Array(1536).fill(0.1));
+    mockEmbedText.mockResolvedValueOnce(new Array(1024).fill(0.1));
     mockInsert.mockReturnValueOnce({
       select: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({
@@ -167,12 +160,11 @@ describe("POST /api/knowledge/images", () => {
       }),
     });
 
-    const fd = new FormData();
-    fd.append("file", new Blob(["fake-image"], { type: "image/jpeg" }), "shoe.jpg");
-    fd.append("description", "A red shoe");
-    fd.append("tags", JSON.stringify(["shoes", "red"]));
-
-    const response = await POST(makeRequest(fd));
+    const response = await POST(makeRequest({
+      file: makeFileField("fake-image"),
+      description: "A red shoe",
+      tags: JSON.stringify(["shoes", "red"]),
+    }));
     const body = await response.json();
 
     expect(response.status).toBe(201);
@@ -183,7 +175,7 @@ describe("POST /api/knowledge/images", () => {
 
 describe("GET /api/knowledge/images", () => {
   it("returns 401 if user is not authenticated", async () => {
-    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+    mockResolveSession.mockResolvedValueOnce(null);
 
     const request = new Request("http://localhost/api/knowledge/images");
     const response = await GET(request);
@@ -191,10 +183,7 @@ describe("GET /api/knowledge/images", () => {
   });
 
   it("returns 200 with images list", async () => {
-    mockGetUser.mockResolvedValueOnce({
-      data: { user: { id: "user-1", app_metadata: { tenant_id: "t-1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValueOnce({ userId: "user-1", tenantId: "t-1" });
 
     mockSelect.mockReturnValueOnce({
       eq: vi.fn().mockReturnValue({

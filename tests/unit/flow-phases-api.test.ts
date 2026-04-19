@@ -1,20 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
+}));
+
+const mockResolveSession = vi.mocked(resolveSession);
+
 const mockFrom = vi.fn();
 const mockSelect = vi.fn();
 const mockEq = vi.fn();
 const mockOrder = vi.fn();
 const mockInsert = vi.fn();
 const mockSingle = vi.fn();
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({
-      auth: { getUser: mockGetUser },
-    })
-  ),
-}));
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
@@ -75,7 +73,7 @@ describe("GET /api/bot/phases", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "No session" } });
+    mockResolveSession.mockResolvedValue(null);
 
     const { GET } = await import("@/app/api/bot/phases/route");
     const response = await GET(new Request("http://localhost/api/bot/phases"));
@@ -83,23 +81,8 @@ describe("GET /api/bot/phases", () => {
     expect(response.status).toBe(401);
   });
 
-  it("returns 403 when user has no tenant", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: {} } },
-      error: null,
-    });
-
-    const { GET } = await import("@/app/api/bot/phases/route");
-    const response = await GET(new Request("http://localhost/api/bot/phases"));
-
-    expect(response.status).toBe(403);
-  });
-
   it("returns phases list ordered by order_index", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { GET } = await import("@/app/api/bot/phases/route");
     const response = await GET(new Request("http://localhost/api/bot/phases"));
@@ -118,10 +101,7 @@ describe("POST /api/bot/phases", () => {
   });
 
   it("creates a new phase", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { POST } = await import("@/app/api/bot/phases/route");
     const response = await POST(
@@ -143,10 +123,7 @@ describe("POST /api/bot/phases", () => {
   });
 
   it("returns 400 for missing required fields", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { POST } = await import("@/app/api/bot/phases/route");
     const response = await POST(

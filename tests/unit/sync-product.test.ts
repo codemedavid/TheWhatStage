@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { syncProductChunk } from "@/lib/ai/sync-product";
 
 vi.mock("@/lib/ai/embedding", () => ({
-  embedText: vi.fn().mockResolvedValue(Array(1536).fill(0.1)),
+  embedText: vi.fn().mockResolvedValue(Array(1024).fill(0.1)),
 }));
 
 const mockInsert = vi.fn().mockReturnValue({

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
-    auth: { getUser: mockGetUser },
-  })),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
+
+const mockResolveSession = vi.mocked(resolveSession);
 
 const mockInsert = vi.fn();
 vi.mock("@/lib/supabase/service", () => ({
@@ -23,7 +23,7 @@ vi.mock("@/lib/supabase/service", () => ({
 }));
 
 vi.mock("@/lib/ai/embedding", () => ({
-  embedText: vi.fn().mockResolvedValue(Array(1536).fill(0.1)),
+  embedText: vi.fn().mockResolvedValue(Array(1024).fill(0.1)),
 }));
 
 beforeEach(() => vi.clearAllMocks());
@@ -31,13 +31,8 @@ beforeEach(() => vi.clearAllMocks());
 import { POST } from "@/app/api/knowledge/faq/route";
 
 describe("POST /api/knowledge/faq", () => {
-  const authedUser = {
-    data: { user: { id: "u-1", app_metadata: { tenant_id: "t-1" } } },
-    error: null,
-  };
-
   it("returns 401 if not authenticated", async () => {
-    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+    mockResolveSession.mockResolvedValueOnce(null);
 
     const request = new Request("http://localhost/api/knowledge/faq", {
       method: "POST",
@@ -50,7 +45,7 @@ describe("POST /api/knowledge/faq", () => {
   });
 
   it("returns 400 if question or answer is missing", async () => {
-    mockGetUser.mockResolvedValueOnce(authedUser);
+    mockResolveSession.mockResolvedValueOnce({ userId: "u-1", tenantId: "t-1" });
 
     const request = new Request("http://localhost/api/knowledge/faq", {
       method: "POST",
@@ -63,7 +58,7 @@ describe("POST /api/knowledge/faq", () => {
   });
 
   it("creates a FAQ doc + chunk and returns 201", async () => {
-    mockGetUser.mockResolvedValueOnce(authedUser);
+    mockResolveSession.mockResolvedValueOnce({ userId: "u-1", tenantId: "t-1" });
 
     // knowledge_docs insert
     mockInsert.mockReturnValueOnce({

@@ -18,7 +18,7 @@ const existingConversationPhaseRow = {
   id: "cp-1",
   phase_id: "phase-1",
   message_count: 3,
-  bot_flow_phases: {
+  campaign_phases: {
     id: "phase-1",
     name: "Greet",
     order_index: 0,
@@ -65,14 +65,16 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-// Helper to mock a select().eq().order().limit().single() chain
+// Helper to mock a select().eq().is().order().limit().single() chain
 function mockSelectChain(result: { data: unknown; error: null | object }) {
   return {
     select: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
-        order: vi.fn().mockReturnValue({
-          limit: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue(result),
+        is: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue(result),
+            }),
           }),
         }),
       }),
@@ -195,7 +197,10 @@ describe("advancePhase", () => {
       mockSelectChain({ data: existingConversationPhaseRow, error: null })
     );
 
-    // DB call 2: find next phase with gt(order_index, 0)
+    // DB call 2: update current phase with exited_at
+    mockFrom.mockReturnValueOnce(mockUpdateChain({ error: null }));
+
+    // DB call 3: find next phase with gt(order_index, 0)
     mockFrom.mockReturnValueOnce(
       mockSelectGtChain({ data: nextPhaseRow, error: null })
     );
@@ -231,10 +236,16 @@ describe("advancePhase", () => {
       mockSelectChain({ data: existingConversationPhaseRow, error: null })
     );
 
-    // DB call 2: find next phase — returns null (no next phase)
+    // DB call 2: update current phase with exited_at
+    mockFrom.mockReturnValueOnce(mockUpdateChain({ error: null }));
+
+    // DB call 3: find next phase — returns null (no next phase)
     mockFrom.mockReturnValueOnce(
       mockSelectGtChain({ data: null, error: { code: "PGRST116" } })
     );
+
+    // DB call 4: revert update (exited_at back to null) since no next phase
+    mockFrom.mockReturnValueOnce(mockUpdateChain({ error: null }));
 
     const result = await advancePhase("conv-1", "tenant-1");
 
@@ -243,8 +254,8 @@ describe("advancePhase", () => {
     expect(result.phaseId).toBe("phase-1");
     expect(result.name).toBe("Greet");
     expect(result.messageCount).toBe(3);
-    // No insert should happen (only 2 DB calls total)
-    expect(mockFrom).toHaveBeenCalledTimes(2);
+    // No insert should happen (4 DB calls: getCurrentPhase + update + selectGt + revert update)
+    expect(mockFrom).toHaveBeenCalledTimes(4);
   });
 });
 
@@ -272,9 +283,11 @@ describe("getCurrentPhase — error paths", () => {
     mockFrom.mockReturnValueOnce({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          order: vi.fn().mockReturnValue({
-            limit: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          is: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
             }),
           }),
         }),
@@ -295,7 +308,7 @@ describe("getCurrentPhase — error paths", () => {
     });
 
     await expect(getCurrentPhase("conv-1", "tenant-1")).rejects.toThrow(
-      "No bot flow phases configured for this tenant"
+      "No campaign phases configured"
     );
   });
 });

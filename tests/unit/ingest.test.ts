@@ -63,7 +63,7 @@ describe("ingestDocument", () => {
   it("processes a PDF: extract → chunk → embed → store", async () => {
     mockExtractPdf.mockResolvedValueOnce({ text: "PDF content here.", pageCount: 1 });
     mockChunk.mockReturnValueOnce(["PDF content here."]);
-    mockEmbedBatch.mockResolvedValueOnce([Array(1536).fill(0.1)]);
+    mockEmbedBatch.mockResolvedValueOnce([Array(1024).fill(0.1)]);
 
     await ingestDocument({
       ...baseParams,
@@ -82,8 +82,8 @@ describe("ingestDocument", () => {
     mockExtractDocx.mockResolvedValueOnce("DOCX paragraph one. Paragraph two.");
     mockChunk.mockReturnValueOnce(["DOCX paragraph one.", "Paragraph two."]);
     mockEmbedBatch.mockResolvedValueOnce([
-      Array(1536).fill(0.1),
-      Array(1536).fill(0.2),
+      Array(1024).fill(0.1),
+      Array(1024).fill(0.2),
     ]);
 
     await ingestDocument({
@@ -105,8 +105,8 @@ describe("ingestDocument", () => {
       "Name: Gadget\nPrice: 20",
     ]);
     mockEmbedBatch.mockResolvedValueOnce([
-      Array(1536).fill(0.1),
-      Array(1536).fill(0.2),
+      Array(1024).fill(0.1),
+      Array(1024).fill(0.2),
     ]);
 
     await ingestDocument({

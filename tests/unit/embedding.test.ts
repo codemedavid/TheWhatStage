@@ -1,154 +1,129 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { embedText, embedBatch, EMBEDDING_DIM } from "@/lib/ai/embedding";
 
-// Mock global fetch
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+const mockFeatureExtraction = vi.fn();
+
+vi.mock("@huggingface/inference", () => ({
+  InferenceClient: vi.fn().mockImplementation(() => ({
+    featureExtraction: mockFeatureExtraction,
+  })),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.HF_TOKEN = "test-hf-token";
 });
 
 describe("embedText", () => {
-  it("returns an embedding vector for a single string", async () => {
-    const fakeEmbedding = Array.from({ length: 4096 }, (_, i) => i * 0.001);
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeEmbedding],
-    });
+  it("returns a 1024-dim embedding vector for a single string", async () => {
+    const fakeEmbedding = Array.from({ length: EMBEDDING_DIM }, (_, i) => i * 0.001);
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbedding);
 
     const result = await embedText("Hello world");
 
-    expect(result).toEqual(fakeEmbedding.slice(0, EMBEDDING_DIM));
+    expect(result).toEqual(fakeEmbedding);
     expect(result).toHaveLength(EMBEDDING_DIM);
-    expect(mockFetch).toHaveBeenCalledOnce();
-
-    const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toContain("Qwen/Qwen3-Embedding-8B");
-    expect(options.method).toBe("POST");
-    expect(options.headers["Authorization"]).toBe("Bearer test-hf-api-key");
-
-    const body = JSON.parse(options.body);
-    expect(body.inputs).toBe("Hello world");
+    expect(mockFeatureExtraction).toHaveBeenCalledOnce();
+    expect(mockFeatureExtraction).toHaveBeenCalledWith({
+      model: "BAAI/bge-large-en-v1.5",
+      inputs: "Hello world",
+      provider: "hf-inference",
+    });
   });
 
-  it("throws on non-retryable API error", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      text: async () => "Bad request",
-    });
+  it("throws if HF_TOKEN is not set", async () => {
+    delete process.env.HF_TOKEN;
+    await expect(embedText("test")).rejects.toThrow("HF_TOKEN is not set");
+  });
 
-    await expect(embedText("test")).rejects.toThrow(
-      "HuggingFace embedding API error (400): Bad request"
-    );
-    expect(mockFetch).toHaveBeenCalledOnce();
+  it("throws on API error", async () => {
+    mockFeatureExtraction.mockRejectedValueOnce(new Error("API request failed: 400 Bad request"));
+
+    await expect(embedText("test")).rejects.toThrow("400");
+    expect(mockFeatureExtraction).toHaveBeenCalledOnce();
   });
 
   it("retries on 503 then succeeds", async () => {
-    const fakeEmbedding = Array.from({ length: 4096 }, () => 0.5);
-    // First call: 503
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 503,
-      text: async () => "Model is loading",
-    });
-    // Retry: success
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeEmbedding],
-    });
+    const fakeEmbedding = Array.from({ length: EMBEDDING_DIM }, () => 0.5);
+    mockFeatureExtraction
+      .mockRejectedValueOnce(new Error("503 Model is loading"))
+      .mockResolvedValueOnce(fakeEmbedding);
 
     const result = await embedText("test");
     expect(result).toHaveLength(EMBEDDING_DIM);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFeatureExtraction).toHaveBeenCalledTimes(2);
   });
 
   it("throws after exhausting retries on 503", async () => {
-    const error503 = {
-      ok: false,
-      status: 503,
-      text: async () => "Model is loading",
-    };
-    // Initial + 2 retries = 3 calls
-    mockFetch
-      .mockResolvedValueOnce(error503)
-      .mockResolvedValueOnce(error503)
-      .mockResolvedValueOnce(error503);
+    const error503 = new Error("503 Service Unavailable");
+    mockFeatureExtraction
+      .mockRejectedValueOnce(error503)
+      .mockRejectedValueOnce(error503)
+      .mockRejectedValueOnce(error503);
 
-    await expect(embedText("test")).rejects.toThrow(
-      "HuggingFace embedding API error (503): Model is loading"
-    );
-    expect(mockFetch).toHaveBeenCalledTimes(3);
+    await expect(embedText("test")).rejects.toThrow("503");
+    expect(mockFeatureExtraction).toHaveBeenCalledTimes(3);
   });
 
-  it("handles flat array response from HF API (single string input)", async () => {
-    // Some HF endpoints return number[] instead of number[][] for single input
-    const flatEmbedding = Array.from({ length: 4096 }, () => 0.42);
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => flatEmbedding,
-    });
+  it("handles number[][] response (SDK wraps single input in array)", async () => {
+    const fakeEmbedding = Array.from({ length: EMBEDDING_DIM }, () => 0.42);
+    // SDK may return [[...]] for single string on some endpoints
+    mockFeatureExtraction.mockResolvedValueOnce([fakeEmbedding]);
 
     const result = await embedText("test");
     expect(result).toHaveLength(EMBEDDING_DIM);
+  });
+
+  it("throws on wrong embedding dimension", async () => {
+    mockFeatureExtraction.mockResolvedValueOnce(Array(512).fill(0.1));
+    await expect(embedText("test")).rejects.toThrow("dimension mismatch");
   });
 });
 
 describe("embedBatch", () => {
-  it("embeds multiple texts in a single API call", async () => {
+  it("embeds multiple texts in a single SDK call", async () => {
     const fakeEmbeddings = [
-      Array.from({ length: 4096 }, () => 0.1),
-      Array.from({ length: 4096 }, () => 0.2),
-      Array.from({ length: 4096 }, () => 0.3),
+      Array.from({ length: EMBEDDING_DIM }, () => 0.1),
+      Array.from({ length: EMBEDDING_DIM }, () => 0.2),
+      Array.from({ length: EMBEDDING_DIM }, () => 0.3),
     ];
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => fakeEmbeddings,
-    });
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbeddings);
 
-    const texts = ["one", "two", "three"];
-    const result = await embedBatch(texts);
+    const result = await embedBatch(["one", "two", "three"]);
 
     expect(result).toHaveLength(3);
     expect(result[0]).toHaveLength(EMBEDDING_DIM);
     expect(result[1]).toHaveLength(EMBEDDING_DIM);
     expect(result[2]).toHaveLength(EMBEDDING_DIM);
-
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(body.inputs).toEqual(["one", "two", "three"]);
+    expect(mockFeatureExtraction).toHaveBeenCalledOnce();
+    expect(mockFeatureExtraction).toHaveBeenCalledWith({
+      model: "BAAI/bge-large-en-v1.5",
+      inputs: ["one", "two", "three"],
+      provider: "hf-inference",
+    });
   });
 
   it("chunks large batches into groups of 10", async () => {
-    const fakeEmbedding = Array.from({ length: 4096 }, () => 0.1);
-
-    // First batch of 10
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => Array(10).fill(fakeEmbedding),
-    });
-    // Second batch of 2
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => Array(2).fill(fakeEmbedding),
-    });
+    const fakeEmbedding = Array.from({ length: EMBEDDING_DIM }, () => 0.1);
+    mockFeatureExtraction
+      .mockResolvedValueOnce(Array(10).fill(fakeEmbedding))
+      .mockResolvedValueOnce(Array(2).fill(fakeEmbedding));
 
     const texts = Array.from({ length: 12 }, (_, i) => `text ${i}`);
     const result = await embedBatch(texts);
 
     expect(result).toHaveLength(12);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFeatureExtraction).toHaveBeenCalledTimes(2);
 
-    const firstBatchBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(firstBatchBody.inputs).toHaveLength(10);
-
-    const secondBatchBody = JSON.parse(mockFetch.mock.calls[1][1].body);
-    expect(secondBatchBody.inputs).toHaveLength(2);
+    const [, firstBatchArgs] = mockFeatureExtraction.mock.calls[0];
+    expect(firstBatchArgs).toBeUndefined(); // args are in first positional param
+    expect(mockFeatureExtraction.mock.calls[0][0].inputs).toHaveLength(10);
+    expect(mockFeatureExtraction.mock.calls[1][0].inputs).toHaveLength(2);
   });
 
   it("returns empty array for empty input", async () => {
     const result = await embedBatch([]);
     expect(result).toEqual([]);
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockFeatureExtraction).not.toHaveBeenCalled();
   });
 });

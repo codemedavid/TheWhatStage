@@ -30,6 +30,10 @@ vi.mock("@/lib/ai/response-parser", () => ({
   parseResponse: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/campaign-assignment", () => ({
+  getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
+}));
+
 const mockUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockResolvedValue({ error: null }),
 });
@@ -119,6 +123,7 @@ const defaultPhase = {
 
 const defaultInput = {
   tenantId: "tenant-1",
+  leadId: "lead-1",
   businessName: "Acme Corp",
   conversationId: "conv-1",
   leadMessage: "Hello, I need help",
@@ -158,7 +163,7 @@ describe("handleMessage", () => {
     const result = await handleMessage(defaultInput);
 
     // All pipeline steps called
-    expect(mockGetCurrentPhase).toHaveBeenCalledWith("conv-1", "tenant-1");
+    expect(mockGetCurrentPhase).toHaveBeenCalledWith("conv-1", "campaign-id-1");
     expect(mockRetrieveKnowledge).toHaveBeenCalledWith({
       query: "Hello, I need help",
       tenantId: "tenant-1",
@@ -201,7 +206,7 @@ describe("handleMessage", () => {
 
     const result = await handleMessage(defaultInput);
 
-    expect(mockAdvancePhase).toHaveBeenCalledWith("conv-1", "tenant-1");
+    expect(mockAdvancePhase).toHaveBeenCalledWith("conv-1", "campaign-id-1");
     expect(result.phaseAction).toBe("advance");
     expect(result.escalated).toBe(false);
   });

@@ -1,18 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-// Mock Supabase clients
-const mockGetUser = vi.fn();
-const mockSelect = vi.fn();
-const mockEq = vi.fn();
-const mockOrder = vi.fn();
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({
-      auth: { getUser: mockGetUser },
-    })
-  ),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
+
+const mockResolveSession = vi.mocked(resolveSession);
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
@@ -46,7 +39,7 @@ describe("GET /api/knowledge/docs", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "No session" } });
+    mockResolveSession.mockResolvedValue(null);
 
     const { GET } = await import("@/app/api/knowledge/docs/route");
     const response = await GET(new Request("http://localhost/api/knowledge/docs"));
@@ -54,23 +47,8 @@ describe("GET /api/knowledge/docs", () => {
     expect(response.status).toBe(401);
   });
 
-  it("returns 403 when user has no tenant", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: {} } },
-      error: null,
-    });
-
-    const { GET } = await import("@/app/api/knowledge/docs/route");
-    const response = await GET(new Request("http://localhost/api/knowledge/docs"));
-
-    expect(response.status).toBe(403);
-  });
-
   it("returns docs list for authenticated tenant user", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { GET } = await import("@/app/api/knowledge/docs/route");
     const response = await GET(new Request("http://localhost/api/knowledge/docs"));

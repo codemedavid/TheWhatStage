@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
+const mockResolveSession = vi.mocked(resolveSession);
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({ auth: { getUser: mockGetUser } })
-  ),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/service", () => ({
@@ -22,10 +21,7 @@ describe("GET /api/campaigns/[id]/phases", () => {
   });
 
   it("returns phases for a campaign", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const phases = [
       { id: "p1", name: "Greet", order_index: 0, campaign_id: "camp-1" },
@@ -58,10 +54,7 @@ describe("POST /api/campaigns/[id]/phases", () => {
   });
 
   it("creates a phase for the campaign", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const newPhase = { id: "p-new", name: "New Phase", campaign_id: "camp-1" };
     mockFrom.mockReturnValue({

@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
+const mockResolveSession = vi.mocked(resolveSession);
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({ auth: { getUser: mockGetUser } })
-  ),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/service", () => ({
@@ -20,17 +19,14 @@ describe("GET /api/campaigns", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "No session" } });
+    mockResolveSession.mockResolvedValue(null);
     const { GET } = await import("@/app/api/campaigns/route");
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("returns campaigns list for tenant", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const campaigns = [
       { id: "c1", name: "Main", is_primary: true, status: "active", goal: "form_submit" },
@@ -61,10 +57,7 @@ describe("POST /api/campaigns", () => {
   });
 
   it("creates a campaign with valid data", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const newCampaign = { id: "c-new", name: "Test Campaign", goal: "purchase", status: "draft" };
 
@@ -89,10 +82,7 @@ describe("POST /api/campaigns", () => {
   });
 
   it("returns 400 for invalid goal", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { POST } = await import("@/app/api/campaigns/route");
     const req = new Request("http://localhost/api/campaigns", {

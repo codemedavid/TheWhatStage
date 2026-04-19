@@ -2,9 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { embedText, embedBatch, EMBEDDING_DIM } from "@/lib/ai/embedding";
 import { searchKnowledge } from "@/lib/ai/vector-search";
 
-// Mock fetch for HuggingFace API
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+// Mock @huggingface/inference
+const mockFeatureExtraction = vi.fn();
+vi.mock("@huggingface/inference", () => ({
+  InferenceClient: vi.fn().mockImplementation(() => ({
+    featureExtraction: mockFeatureExtraction,
+  })),
+}));
 
 // Mock Supabase service client for vector search
 const mockRpc = vi.fn();
@@ -16,30 +20,23 @@ vi.mock("@/lib/supabase/service", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.HF_TOKEN = "test-hf-token";
 });
 
 describe("Embedding Pipeline Integration", () => {
-  // API returns 4096-dim vectors, but client truncates to EMBEDDING_DIM (1536)
-  const API_DIMENSION = 4096;
   const tenantId = "tenant-integration-test";
 
   it("embeds a text, then retrieves it via vector search", async () => {
     // Step 1: Embed a document chunk
-    const fakeEmbedding = Array.from({ length: API_DIMENSION }, (_, i) => Math.sin(i) * 0.01);
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeEmbedding],
-    });
+    const fakeEmbedding = Array.from({ length: EMBEDDING_DIM }, (_, i) => Math.sin(i) * 0.01);
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbedding);
 
     const embedding = await embedText("Our office is located at 123 Main St, Springfield");
     expect(embedding).toHaveLength(EMBEDDING_DIM);
 
     // Step 2: Embed a query
-    const fakeQueryEmbedding = Array.from({ length: API_DIMENSION }, (_, i) => Math.sin(i) * 0.01 + 0.001);
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeQueryEmbedding],
-    });
+    const fakeQueryEmbedding = Array.from({ length: EMBEDDING_DIM }, (_, i) => Math.sin(i) * 0.01 + 0.001);
+    mockFeatureExtraction.mockResolvedValueOnce(fakeQueryEmbedding);
 
     const queryEmbedding = await embedText("Where is your office?");
     expect(queryEmbedding).toHaveLength(EMBEDDING_DIM);
@@ -73,14 +70,11 @@ describe("Embedding Pipeline Integration", () => {
   it("embeds a batch of documents and searches across them", async () => {
     // Step 1: Batch embed 3 chunks
     const fakeEmbeddings = [
-      Array.from({ length: API_DIMENSION }, () => 0.1),
-      Array.from({ length: API_DIMENSION }, () => 0.2),
-      Array.from({ length: API_DIMENSION }, () => 0.3),
+      Array.from({ length: EMBEDDING_DIM }, () => 0.1),
+      Array.from({ length: EMBEDDING_DIM }, () => 0.2),
+      Array.from({ length: EMBEDDING_DIM }, () => 0.3),
     ];
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => fakeEmbeddings,
-    });
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbeddings);
 
     const chunks = [
       "We offer web development services",
@@ -90,14 +84,11 @@ describe("Embedding Pipeline Integration", () => {
     const embeddings = await embedBatch(chunks);
 
     expect(embeddings).toHaveLength(3);
-    expect(mockFetch).toHaveBeenCalledTimes(1); // All fit in one batch
+    expect(mockFeatureExtraction).toHaveBeenCalledTimes(1); // All fit in one batch
 
     // Step 2: Query for pricing
-    const fakeQueryEmbedding = Array.from({ length: API_DIMENSION }, () => 0.2);
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeQueryEmbedding],
-    });
+    const fakeQueryEmbedding = Array.from({ length: EMBEDDING_DIM }, () => 0.2);
+    mockFeatureExtraction.mockResolvedValueOnce(fakeQueryEmbedding);
 
     const queryEmbedding = await embedText("How much does it cost?");
 
@@ -133,24 +124,17 @@ describe("Embedding Pipeline Integration", () => {
   });
 
   it("handles the full pipeline error gracefully when HF API is down", async () => {
-    // 503 is retried — need initial + 2 retries = 3 mock responses
-    const error503 = {
-      ok: false,
-      status: 503,
-      text: async () => "Service Unavailable",
-    };
-    mockFetch
-      .mockResolvedValueOnce(error503)
-      .mockResolvedValueOnce(error503)
-      .mockResolvedValueOnce(error503);
+    const error503 = new Error("503 Service Unavailable");
+    mockFeatureExtraction
+      .mockRejectedValueOnce(error503)
+      .mockRejectedValueOnce(error503)
+      .mockRejectedValueOnce(error503);
 
-    await expect(embedText("test query")).rejects.toThrow(
-      "HuggingFace embedding API error (503)"
-    );
+    await expect(embedText("test query")).rejects.toThrow("503");
   });
 
   it("handles vector search error when RPC fails", async () => {
-    const queryEmbedding = Array.from({ length: API_DIMENSION }, () => 0.1);
+    const queryEmbedding = Array.from({ length: EMBEDDING_DIM }, () => 0.1);
     mockRpc.mockReturnValue({
       data: null,
       error: { message: "connection refused" },

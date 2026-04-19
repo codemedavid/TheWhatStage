@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
-const mockFrom = vi.fn();
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({ auth: { getUser: mockGetUser } })
-  ),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
+
+const mockResolveSession = vi.mocked(resolveSession);
+const mockFrom = vi.fn();
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({ from: mockFrom })),
@@ -20,17 +19,14 @@ describe("GET /api/experiments", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "No session" } });
+    mockResolveSession.mockResolvedValue(null);
     const { GET } = await import("@/app/api/experiments/route");
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("returns experiments list", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     mockFrom.mockReturnValue({
       select: vi.fn().mockReturnValue({
@@ -59,10 +55,7 @@ describe("POST /api/experiments", () => {
   });
 
   it("creates an experiment with campaign variants", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const experiment = { id: "exp-new", name: "A/B Test", status: "draft" };
     let callIndex = 0;

@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
-const mockFrom = vi.fn();
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({ auth: { getUser: mockGetUser } })
-  ),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
+
+const mockResolveSession = vi.mocked(resolveSession);
+const mockFrom = vi.fn();
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({ from: mockFrom })),
@@ -22,10 +21,7 @@ describe("POST /api/experiments/[id]/promote", () => {
   });
 
   it("returns 400 when no winner_campaign_id provided", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { POST } = await import("@/app/api/experiments/[id]/promote/route");
     const req = new Request("http://localhost/api/experiments/exp-1/promote", {

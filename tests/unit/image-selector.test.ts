@@ -118,7 +118,7 @@ describe("selectImages", () => {
     });
 
     // Embedding
-    mockEmbedText.mockResolvedValueOnce(new Array(1536).fill(0.1));
+    mockEmbedText.mockResolvedValueOnce(new Array(1024).fill(0.1));
 
     // Semantic re-rank via RPC
     mockRpc.mockResolvedValueOnce({
@@ -155,7 +155,7 @@ describe("selectImages", () => {
       }),
     });
 
-    mockEmbedText.mockResolvedValueOnce(new Array(1536).fill(0.1));
+    mockEmbedText.mockResolvedValueOnce(new Array(1024).fill(0.1));
 
     mockRpc.mockResolvedValueOnce({
       data: [

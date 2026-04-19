@@ -30,6 +30,10 @@ vi.mock("@/lib/ai/response-parser", () => ({
   parseResponse: vi.fn(),
 }));
 
+vi.mock("@/lib/ai/campaign-assignment", () => ({
+  getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
+}));
+
 // Track all supabase calls
 const mockInsert = vi.fn().mockResolvedValue({ error: null });
 const mockUpdateEq = vi.fn().mockResolvedValue({ error: null });
@@ -122,6 +126,7 @@ const defaultPhase = {
 
 const defaultInput = {
   tenantId: "tenant-1",
+  leadId: "lead-1",
   businessName: "Acme Corp",
   conversationId: "conv-1",
   leadMessage: "Hello, I need help",

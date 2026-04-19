@@ -1,9 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { retrieveKnowledge } from "@/lib/ai/retriever";
 
-// Mock fetch for HuggingFace embedding API
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+// Mock @huggingface/inference SDK
+const mockFeatureExtraction = vi.fn();
+vi.mock("@huggingface/inference", () => ({
+  InferenceClient: vi.fn().mockImplementation(() => ({
+    featureExtraction: mockFeatureExtraction,
+  })),
+}));
+
+// Mock LLM client for query expansion (expandQuery in retriever)
+const mockGenerateResponse = vi.fn();
+vi.mock("@/lib/ai/llm-client", () => ({
+  generateResponse: (...args: unknown[]) => mockGenerateResponse(...args),
+}));
 
 // Mock Supabase service client for vector search
 const mockRpc = vi.fn();
@@ -13,24 +23,21 @@ vi.mock("@/lib/supabase/service", () => ({
   })),
 }));
 
-const API_DIM = 4096;
-const fakeEmbedding = Array.from({ length: API_DIM }, (_, i) => Math.sin(i) * 0.01);
+const fakeEmbedding = Array.from({ length: 1024 }, (_, i) => Math.sin(i) * 0.01);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.HF_TOKEN = "test-hf-token";
+  // Default: expandQuery returns keywords (so pass2 runs when pass1 is weak)
+  mockGenerateResponse.mockResolvedValue({ content: "open, hours, time", finishReason: "stop" });
 });
 
 describe("RAG Retrieval Integration", () => {
   const tenantId = "tenant-integration";
 
   it("routes a pricing query to product KB and returns ranked results", async () => {
-    // Embed the query
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeEmbedding],
-    });
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbedding);
 
-    // Vector search returns product results
     mockRpc.mockReturnValueOnce({
       data: [
         { id: "p1", content: "Widget costs $25.", similarity: 0.90, metadata: {} },
@@ -51,11 +58,7 @@ describe("RAG Retrieval Integration", () => {
   });
 
   it("queries both KBs for ambiguous queries and merges results", async () => {
-    // Embed the query
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeEmbedding],
-    });
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbedding);
 
     // General KB results (called first in Promise.all)
     mockRpc.mockReturnValueOnce({
@@ -85,10 +88,7 @@ describe("RAG Retrieval Integration", () => {
 
   it("reformulates and retries when initial results are weak", async () => {
     // First embed
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeEmbedding],
-    });
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbedding);
 
     // First search: weak results
     mockRpc.mockReturnValueOnce({
@@ -99,10 +99,7 @@ describe("RAG Retrieval Integration", () => {
     });
 
     // Second embed (reformulated query)
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeEmbedding],
-    });
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbedding);
 
     // Second search: strong results
     mockRpc.mockReturnValueOnce({
@@ -120,25 +117,19 @@ describe("RAG Retrieval Integration", () => {
     expect(result.status).toBe("success");
     expect(result.chunks).toHaveLength(1);
     expect(result.chunks[0].content).toContain("9-5");
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFeatureExtraction).toHaveBeenCalledTimes(2);
   });
 
   it("returns no_results when KB is empty", async () => {
     // First embed
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeEmbedding],
-    });
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbedding);
 
     // First search: "both" target calls RPC twice (general + product in parallel)
     mockRpc.mockReturnValueOnce({ data: [], error: null });
     mockRpc.mockReturnValueOnce({ data: [], error: null });
 
     // Second embed (reformulated)
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [fakeEmbedding],
-    });
+    mockFeatureExtraction.mockResolvedValueOnce(fakeEmbedding);
 
     // Second search: "both" target calls RPC twice again
     mockRpc.mockReturnValueOnce({ data: [], error: null });

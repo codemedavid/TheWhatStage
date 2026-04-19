@@ -1,14 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveSession } from "@/lib/auth/session";
 
-const mockGetUser = vi.fn();
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(() =>
-    Promise.resolve({
-      auth: { getUser: mockGetUser },
-    })
-  ),
+vi.mock("@/lib/auth/session", () => ({
+  resolveSession: vi.fn(),
 }));
+
+const mockResolveSession = vi.mocked(resolveSession);
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
@@ -39,7 +36,7 @@ describe("POST /api/bot/phases/reorder", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: "No session" } });
+    mockResolveSession.mockResolvedValue(null);
 
     const { POST } = await import("@/app/api/bot/phases/reorder/route");
     const response = await POST(
@@ -54,10 +51,7 @@ describe("POST /api/bot/phases/reorder", () => {
   });
 
   it("reorders phases", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { POST } = await import("@/app/api/bot/phases/reorder/route");
     const response = await POST(
@@ -77,10 +71,7 @@ describe("POST /api/bot/phases/reorder", () => {
   });
 
   it("returns 400 for empty order array", async () => {
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: "u1", app_metadata: { tenant_id: "t1" } } },
-      error: null,
-    });
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
 
     const { POST } = await import("@/app/api/bot/phases/reorder/route");
     const response = await POST(
