@@ -13,6 +13,7 @@ import {
   Settings,
   Menu,
   X,
+  Target,
 } from "lucide-react";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -30,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/app/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/app/leads", label: "Leads", icon: Users },
   { href: "/app/bot", label: "Bot", icon: Bot },
+  { href: "/app/campaigns", label: "Campaigns", icon: Target },
   { href: "/app/actions", label: "Actions", icon: Link2 },
   { href: "/app/workflows", label: "Workflows", icon: Zap },
 ];
