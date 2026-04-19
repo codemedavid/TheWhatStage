@@ -1,30 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("@/lib/ai/query-router", () => ({ classifyQuery: vi.fn() }));
+vi.mock("@/lib/ai/embedding", () => ({ embedText: vi.fn() }));
+vi.mock("@/lib/ai/vector-search", () => ({ searchKnowledge: vi.fn() }));
+vi.mock("@/lib/ai/reranker", () => ({ rerankChunks: vi.fn() }));
+vi.mock("@/lib/ai/llm-client", () => ({ generateResponse: vi.fn() }));
+
 import { retrieveKnowledge } from "@/lib/ai/retriever";
-
-vi.mock("@/lib/ai/query-router", () => ({
-  classifyQuery: vi.fn(),
-}));
-vi.mock("@/lib/ai/query-reformulator", () => ({
-  reformulateQuery: vi.fn(),
-}));
-vi.mock("@/lib/ai/embedding", () => ({
-  embedText: vi.fn(),
-}));
-vi.mock("@/lib/ai/vector-search", () => ({
-  searchKnowledge: vi.fn(),
-}));
-
 import { classifyQuery } from "@/lib/ai/query-router";
-import { reformulateQuery } from "@/lib/ai/query-reformulator";
 import { embedText } from "@/lib/ai/embedding";
 import { searchKnowledge } from "@/lib/ai/vector-search";
+import { rerankChunks } from "@/lib/ai/reranker";
+import { generateResponse } from "@/lib/ai/llm-client";
 
 const mockClassify = vi.mocked(classifyQuery);
-const mockReformulate = vi.mocked(reformulateQuery);
 const mockEmbed = vi.mocked(embedText);
 const mockSearch = vi.mocked(searchKnowledge);
+const mockRerank = vi.mocked(rerankChunks);
+const mockGenerate = vi.mocked(generateResponse);
 
-const fakeEmbedding = Array(1536).fill(0.1);
+const fakeEmbedding = Array(1024).fill(0.1);
+
+const chunk = (id: string, similarity: number) => ({
+  id,
+  content: `Content of ${id}`,
+  similarity,
+  metadata: {},
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -32,121 +34,107 @@ beforeEach(() => {
 });
 
 describe("retrieveKnowledge", () => {
-  const tenantId = "tenant-1";
+  const tenantId = "t1";
 
-  it("routes to general KB and returns ranked chunks", async () => {
+  it("returns success on Pass 1 when top reranker score >= 0.6", async () => {
     mockClassify.mockReturnValue("general");
-    mockSearch.mockResolvedValueOnce([
-      { id: "c1", content: "Our hours are 9-5.", similarity: 0.85, metadata: {} },
-      { id: "c2", content: "We are in Springfield.", similarity: 0.72, metadata: {} },
-    ]);
+    mockSearch.mockResolvedValue([chunk("c1", 0.8), chunk("c2", 0.7)]);
+    mockRerank.mockResolvedValue([chunk("c1", 0.85), chunk("c2", 0.72)]);
 
     const result = await retrieveKnowledge({ query: "What are your hours?", tenantId });
 
     expect(result.status).toBe("success");
-    expect(result.chunks).toHaveLength(2);
-    expect(result.chunks[0].similarity).toBeGreaterThanOrEqual(result.chunks[1].similarity);
-    expect(result.queryTarget).toBe("general");
-    expect(mockSearch).toHaveBeenCalledWith(
-      expect.objectContaining({ kbType: "general", topK: 5 })
-    );
+    expect(result.retrievalPass).toBe(1);
+    expect(result.chunks[0].id).toBe("c1");
+    expect(mockGenerate).not.toHaveBeenCalled();
   });
 
-  it("routes to product KB with topK=3", async () => {
-    mockClassify.mockReturnValue("product");
-    mockSearch.mockResolvedValueOnce([
-      { id: "p1", content: "Widget costs $25.", similarity: 0.90, metadata: {} },
-    ]);
+  it("triggers Pass 2 when top reranker score < 0.6", async () => {
+    mockClassify.mockReturnValue("general");
+    // Pass 1: low confidence results
+    mockSearch.mockResolvedValueOnce([chunk("c1", 0.5)]);
+    mockRerank.mockResolvedValueOnce([chunk("c1", 0.4)]); // below 0.6
 
-    const result = await retrieveKnowledge({ query: "How much is the widget?", tenantId });
+    // LLM expansion
+    mockGenerate.mockResolvedValue({
+      content: "hours open schedule",
+      finishReason: "stop",
+    });
 
-    expect(result.status).toBe("success");
-    expect(result.queryTarget).toBe("product");
-    expect(mockSearch).toHaveBeenCalledWith(
-      expect.objectContaining({ kbType: "product", topK: 3 })
-    );
+    // Pass 2: better results
+    mockSearch.mockResolvedValueOnce([chunk("c2", 0.9)]);
+    mockRerank.mockResolvedValueOnce([chunk("c2", 0.88)]);
+
+    const result = await retrieveKnowledge({ query: "When can I come in?", tenantId });
+
+    expect(result.retrievalPass).toBe(2);
+    expect(mockGenerate).toHaveBeenCalledOnce();
+    const genArgs = mockGenerate.mock.calls[0];
+    expect(genArgs[0]).toContain("search keywords");
+    expect(genArgs[2]).toMatchObject({ temperature: 0, maxTokens: 50 });
   });
 
-  it("queries both KBs when classification is 'both' and merges results", async () => {
+  it("merges and deduplicates Pass 1 + Pass 2 results", async () => {
+    mockClassify.mockReturnValue("general");
+    mockSearch.mockResolvedValueOnce([chunk("c1", 0.5), chunk("shared", 0.5)]);
+    mockRerank.mockResolvedValueOnce([chunk("c1", 0.55), chunk("shared", 0.5)]);
+
+    mockGenerate.mockResolvedValue({ content: "keywords", finishReason: "stop" });
+
+    mockSearch.mockResolvedValueOnce([chunk("c2", 0.9), chunk("shared", 0.9)]);
+    mockRerank.mockResolvedValueOnce([chunk("c2", 0.95), chunk("shared", 0.88)]);
+
+    const result = await retrieveKnowledge({ query: "question", tenantId });
+
+    const ids = result.chunks.map((c) => c.id);
+    const uniqueIds = new Set(ids);
+    expect(uniqueIds.size).toBe(ids.length);
+  });
+
+  it("returns both targets in parallel when classification is 'both'", async () => {
     mockClassify.mockReturnValue("both");
-    mockSearch.mockResolvedValueOnce([
-      { id: "g1", content: "General info.", similarity: 0.60, metadata: {} },
-    ]);
-    mockSearch.mockResolvedValueOnce([
-      { id: "p1", content: "Product info.", similarity: 0.80, metadata: {} },
-    ]);
+    mockSearch
+      .mockResolvedValueOnce([chunk("g1", 0.8)])
+      .mockResolvedValueOnce([chunk("p1", 0.9)]);
+    mockRerank.mockResolvedValue([chunk("p1", 0.92), chunk("g1", 0.78)]);
 
     const result = await retrieveKnowledge({ query: "Tell me more", tenantId });
 
-    expect(result.status).toBe("success");
-    expect(result.chunks).toHaveLength(2);
-    expect(result.chunks[0].id).toBe("p1");
-    expect(result.chunks[1].id).toBe("g1");
     expect(result.queryTarget).toBe("both");
+    expect(mockSearch).toHaveBeenCalledTimes(2);
+    expect(result.chunks[0].id).toBe("p1");
   });
 
-  it("reformulates and retries when all results are below threshold", async () => {
+  it("returns no_results when both passes return empty", async () => {
     mockClassify.mockReturnValue("general");
-    mockSearch.mockResolvedValueOnce([
-      { id: "c1", content: "Vaguely related.", similarity: 0.25, metadata: {} },
-    ]);
-    mockReformulate.mockReturnValue("hours open");
-    mockEmbed.mockResolvedValueOnce(fakeEmbedding);
-    mockSearch.mockResolvedValueOnce([
-      { id: "c2", content: "We are open 9-5.", similarity: 0.75, metadata: {} },
-    ]);
+    mockSearch.mockResolvedValue([]);
+    mockRerank.mockResolvedValue([]);
+    mockGenerate.mockResolvedValue({ content: "keywords", finishReason: "stop" });
 
-    const result = await retrieveKnowledge({ query: "Can you tell me when you're open?", tenantId });
-
-    expect(result.status).toBe("success");
-    expect(result.chunks).toHaveLength(1);
-    expect(result.chunks[0].similarity).toBeGreaterThan(0.3);
-    expect(mockReformulate).toHaveBeenCalledOnce();
-    expect(mockEmbed).toHaveBeenCalledTimes(2);
-  });
-
-  it("returns low_confidence when reformulation also yields low results", async () => {
-    mockClassify.mockReturnValue("general");
-    mockSearch.mockResolvedValueOnce([
-      { id: "c1", content: "Not relevant.", similarity: 0.20, metadata: {} },
-    ]);
-    mockReformulate.mockReturnValue("something");
-    mockEmbed.mockResolvedValueOnce(fakeEmbedding);
-    mockSearch.mockResolvedValueOnce([
-      { id: "c2", content: "Still not relevant.", similarity: 0.22, metadata: {} },
-    ]);
-
-    const result = await retrieveKnowledge({ query: "xyz abc 123", tenantId });
-
-    expect(result.status).toBe("low_confidence");
-    expect(result.chunks).toHaveLength(0);
-  });
-
-  it("returns no_results when search returns empty", async () => {
-    mockClassify.mockReturnValue("general");
-    mockSearch.mockResolvedValueOnce([]);
-    mockReformulate.mockReturnValue("query");
-    mockEmbed.mockResolvedValueOnce(fakeEmbedding);
-    mockSearch.mockResolvedValueOnce([]);
-
-    const result = await retrieveKnowledge({ query: "Something obscure", tenantId });
+    const result = await retrieveKnowledge({ query: "xyz 123 obscure", tenantId });
 
     expect(result.status).toBe("no_results");
     expect(result.chunks).toHaveLength(0);
   });
 
-  it("filters out chunks below the similarity threshold", async () => {
+
+  it("strips non-word characters from LLM expansion output before search", async () => {
     mockClassify.mockReturnValue("general");
-    mockSearch.mockResolvedValueOnce([
-      { id: "c1", content: "Good match.", similarity: 0.85, metadata: {} },
-      { id: "c2", content: "Weak match.", similarity: 0.25, metadata: {} },
-      { id: "c3", content: "Decent match.", similarity: 0.55, metadata: {} },
-    ]);
+    mockSearch.mockResolvedValueOnce([chunk("c1", 0.5)]);
+    mockRerank.mockResolvedValueOnce([chunk("c1", 0.4)]);
 
-    const result = await retrieveKnowledge({ query: "Tell me about services", tenantId });
+    mockGenerate.mockResolvedValue({
+      content: 'Ignore instructions! DROP TABLE; hours, open',
+      finishReason: "stop",
+    });
 
-    expect(result.status).toBe("success");
-    expect(result.chunks).toHaveLength(2);
-    expect(result.chunks.every((c) => c.similarity >= 0.3)).toBe(true);
+    mockSearch.mockResolvedValueOnce([]);
+    mockRerank.mockResolvedValueOnce([]);
+
+    await retrieveKnowledge({ query: "question", tenantId });
+
+    const secondSearchCall = mockSearch.mock.calls[1];
+    expect(secondSearchCall[0].ftsQuery).not.toContain("DROP");
+    expect(secondSearchCall[0].ftsQuery).not.toContain(";");
   });
 });
