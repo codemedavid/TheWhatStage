@@ -33,9 +33,23 @@ vi.mock("@/lib/ai/response-parser", () => ({
 const mockUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockResolvedValue({ error: null }),
 });
+const mockInsert = vi.fn().mockResolvedValue({ error: null });
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
     from: vi.fn((table: string) => {
+      if (table === "conversations") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { bot_paused_at: null },
+                error: null,
+              }),
+            }),
+          }),
+          update: mockUpdate,
+        };
+      }
       if (table === "tenants") {
         return {
           select: vi.fn().mockReturnValue({
@@ -55,6 +69,11 @@ vi.mock("@/lib/supabase/service", () => ({
               in: vi.fn().mockResolvedValue({ data: [], error: null }),
             }),
           }),
+        };
+      }
+      if (table === "escalation_events") {
+        return {
+          insert: mockInsert,
         };
       }
       return {
@@ -167,6 +186,7 @@ describe("handleMessage", () => {
       imageIds: [],
       currentPhase: "Greet",
       escalated: false,
+      paused: false,
     });
   });
 
@@ -199,8 +219,12 @@ describe("handleMessage", () => {
     expect(mockAdvancePhase).not.toHaveBeenCalled();
     expect(result.escalated).toBe(true);
     expect(result.phaseAction).toBe("escalate");
-    // Supabase update should have been called
-    expect(mockUpdate).toHaveBeenCalledWith({ needs_human: true });
+    // Supabase update should have been called with enriched escalation fields
+    expect(mockUpdate).toHaveBeenCalledWith({
+      needs_human: true,
+      escalation_reason: "llm_decision",
+      escalation_message_id: null,
+    });
   });
 
   it("prepends a hedging phrase when confidence is between 0.4 and 0.7", async () => {
@@ -266,6 +290,19 @@ describe("handleMessage", () => {
     // Override supabase to validate these image IDs for this test
     vi.mocked(createServiceClient).mockReturnValueOnce({
       from: vi.fn((table: string) => {
+        if (table === "conversations") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { bot_paused_at: null },
+                  error: null,
+                }),
+              }),
+            }),
+            update: mockUpdate,
+          };
+        }
         if (table === "tenants") {
           return {
             select: vi.fn().mockReturnValue({
@@ -293,6 +330,9 @@ describe("handleMessage", () => {
               }),
             }),
           };
+        }
+        if (table === "escalation_events") {
+          return { insert: mockInsert };
         }
         return { update: mockUpdate };
       }),

@@ -13,6 +13,7 @@ export interface EngineInput {
   businessName: string;
   conversationId: string;
   leadMessage: string;
+  leadMessageId?: string;
 }
 
 export interface EngineOutput {
@@ -22,6 +23,7 @@ export interface EngineOutput {
   imageIds: string[];
   currentPhase: string;
   escalated: boolean;
+  paused: boolean;
 }
 
 const HEDGING_PHRASES = [
@@ -40,8 +42,73 @@ function applyHedging(message: string, confidence: number): string {
 }
 
 export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
-  const { tenantId, businessName, conversationId, leadMessage } = input;
+  const { tenantId, businessName, conversationId, leadMessage, leadMessageId } = input;
   const supabase = createServiceClient();
+
+  // Gate check: if bot is paused for human handoff, return early or auto-resume
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("bot_paused_at")
+    .eq("id", conversationId)
+    .single();
+
+  if (conversation?.bot_paused_at) {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("handoff_timeout_hours")
+      .eq("id", tenantId)
+      .single();
+
+    const timeoutHours = tenant?.handoff_timeout_hours ?? null;
+
+    if (timeoutHours === null) {
+      // Never auto-resume
+      return {
+        message: "",
+        phaseAction: "stay",
+        confidence: 0,
+        imageIds: [],
+        currentPhase: "",
+        escalated: false,
+        paused: true,
+      };
+    }
+
+    const pausedAt = new Date(conversation.bot_paused_at).getTime();
+    const elapsed = Date.now() - pausedAt;
+    const timeoutMs = timeoutHours * 60 * 60 * 1000;
+
+    if (elapsed <= timeoutMs) {
+      // Still within timeout
+      return {
+        message: "",
+        phaseAction: "stay",
+        confidence: 0,
+        imageIds: [],
+        currentPhase: "",
+        escalated: false,
+        paused: true,
+      };
+    }
+
+    // Auto-resume: timeout expired
+    await supabase
+      .from("conversations")
+      .update({
+        bot_paused_at: null,
+        needs_human: false,
+        escalation_reason: null,
+        escalation_message_id: null,
+      })
+      .eq("id", conversationId);
+
+    await supabase.from("escalation_events").insert({
+      conversation_id: conversationId,
+      tenant_id: tenantId,
+      type: "bot_resumed",
+      reason: "timeout",
+    });
+  }
 
   // Step 1: Get/initialize current phase
   const currentPhase = await getCurrentPhase(conversationId, tenantId);
@@ -119,10 +186,30 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     await advancePhase(conversationId, tenantId);
   } else if (decision.phaseAction === "escalate") {
     escalated = true;
+
+    // Determine escalation reason
+    const escalationReason =
+      parsed.cleanMessage.trim() === ""
+        ? "empty_response"
+        : decision.confidence < 0.4
+          ? "low_confidence"
+          : "llm_decision";
+
     await supabase
       .from("conversations")
-      .update({ needs_human: true })
+      .update({
+        needs_human: true,
+        escalation_reason: escalationReason,
+        escalation_message_id: leadMessageId ?? null,
+      })
       .eq("id", conversationId);
+
+    await supabase.from("escalation_events").insert({
+      conversation_id: conversationId,
+      tenant_id: tenantId,
+      type: "escalated",
+      reason: escalationReason,
+    });
   }
   // "stay" is a no-op
 
@@ -140,5 +227,6 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     imageIds: validatedImageIds,
     currentPhase: currentPhase.name,
     escalated,
+    paused: false,
   };
 }

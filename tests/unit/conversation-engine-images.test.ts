@@ -89,9 +89,22 @@ beforeEach(() => {
     }
     if (table === "conversations") {
       return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { bot_paused_at: null },
+              error: null,
+            }),
+          }),
+        }),
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
+      };
+    }
+    if (table === "escalation_events") {
+      return {
+        insert: vi.fn().mockResolvedValue({ error: null }),
       };
     }
     if (table === "knowledge_images") {
@@ -165,6 +178,21 @@ describe("handleMessage — image integration", () => {
 
     // Mock image validation query
     mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === "conversations") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { bot_paused_at: null },
+                error: null,
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        };
+      }
       if (table === "tenants") {
         return {
           select: vi.fn().mockReturnValue({
@@ -192,6 +220,9 @@ describe("handleMessage — image integration", () => {
             }),
           }),
         };
+      }
+      if (table === "escalation_events") {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
       }
       return {};
     });
@@ -221,6 +252,21 @@ describe("handleMessage — image integration", () => {
     });
 
     mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === "conversations") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { bot_paused_at: null },
+                error: null,
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        };
+      }
       if (table === "tenants") {
         return {
           select: vi.fn().mockReturnValue({
@@ -244,6 +290,9 @@ describe("handleMessage — image integration", () => {
             }),
           }),
         };
+      }
+      if (table === "escalation_events") {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
       }
       return {};
     });
@@ -271,6 +320,21 @@ describe("handleMessage — image integration", () => {
     });
 
     mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === "conversations") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { bot_paused_at: null },
+                error: null,
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        };
+      }
       if (table === "tenants") {
         return {
           select: vi.fn().mockReturnValue({
@@ -295,6 +359,9 @@ describe("handleMessage — image integration", () => {
             }),
           }),
         };
+      }
+      if (table === "escalation_events") {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
       }
       return {};
     });
