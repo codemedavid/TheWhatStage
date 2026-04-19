@@ -9,6 +9,8 @@ const schema = z.object({
   handoff_timeout_hours: z
     .union([z.number().refine((v) => VALID_TIMEOUT_VALUES.includes(v)), z.null()])
     .optional(),
+  persona_tone: z.enum(["friendly", "professional", "casual"]).optional(),
+  custom_instructions: z.string().max(2000).optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -46,6 +48,12 @@ export async function PATCH(request: Request) {
   const updates: Record<string, unknown> = {};
   if (parsed.data.handoff_timeout_hours !== undefined) {
     updates.handoff_timeout_hours = parsed.data.handoff_timeout_hours;
+  }
+  if (parsed.data.persona_tone !== undefined) {
+    updates.persona_tone = parsed.data.persona_tone;
+  }
+  if (parsed.data.custom_instructions !== undefined) {
+    updates.custom_instructions = parsed.data.custom_instructions;
   }
 
   if (Object.keys(updates).length === 0) {

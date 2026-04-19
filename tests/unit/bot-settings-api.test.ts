@@ -174,4 +174,52 @@ describe("PATCH /api/bot/settings", () => {
     const body = await response.json();
     expect(body.error).toBe("No fields to update");
   });
+
+  it("updates persona_tone successfully", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+    mockMaybeSingle.mockResolvedValue({ data: { tenant_id: "t1", role: "admin" }, error: null });
+
+    const { PATCH } = await import("@/app/api/bot/settings/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/bot/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ persona_tone: "professional" }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.success).toBe(true);
+  });
+
+  it("rejects invalid persona_tone", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+
+    const { PATCH } = await import("@/app/api/bot/settings/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/bot/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ persona_tone: "aggressive" }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects custom_instructions over 2000 chars", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+
+    const { PATCH } = await import("@/app/api/bot/settings/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/bot/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ custom_instructions: "x".repeat(2001) }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+  });
 });
