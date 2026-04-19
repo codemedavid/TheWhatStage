@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGetUser = vi.fn();
-const mockUpsert = vi.fn();
-const mockSelect = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(() =>
@@ -15,16 +13,22 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
     from: vi.fn(() => ({
-      select: mockSelect.mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          in: vi.fn().mockReturnValue(
+      // For the ownership count check: select → eq → in
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          in: vi.fn(() =>
             Promise.resolve({ count: 2, error: null })
           ),
-        }),
-      }),
-      upsert: mockUpsert.mockReturnValue(
-        Promise.resolve({ error: null })
-      ),
+        })),
+      })),
+      // For individual updates: update → eq → eq
+      update: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn(() =>
+            Promise.resolve({ error: null })
+          ),
+        })),
+      })),
     })),
   })),
 }));
