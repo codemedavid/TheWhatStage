@@ -19,9 +19,12 @@ import type { ChunkResult } from "@/lib/ai/vector-search";
 
 function setupMocks(
   rules: { rule_text: string; category: string }[] = [],
-  messages: { direction: string; text: string }[] = []
+  messages: { direction: string; text: string }[] = [],
+  persona: { persona_tone: string; custom_instructions: string | null } = {
+    persona_tone: "friendly",
+    custom_instructions: null,
+  }
 ) {
-  // bot_rules: select().eq().eq()
   const rulesChain = {
     select: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
@@ -30,7 +33,6 @@ function setupMocks(
     }),
   };
 
-  // messages: select().eq().order().limit()
   const messagesChain = {
     select: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
@@ -41,9 +43,18 @@ function setupMocks(
     }),
   };
 
+  const personaChain = {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({ data: persona, error: null }),
+      }),
+    }),
+  };
+
   mockFrom
     .mockReturnValueOnce(rulesChain)
-    .mockReturnValueOnce(messagesChain);
+    .mockReturnValueOnce(messagesChain)
+    .mockReturnValueOnce(personaChain);
 }
 
 const basePhase: CurrentPhase = {
