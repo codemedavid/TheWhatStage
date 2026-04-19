@@ -99,16 +99,25 @@
 
 ---
 
-## Phase 7: Conversation Flow Builder
+## Phase 7: Conversation Flow Builder ✅ COMPLETE
 
-- [ ] Build `src/components/dashboard/bot/PhaseBuilder.tsx` — add/remove/reorder phases
-- [ ] Build `src/components/dashboard/bot/PhaseConfig.tsx` — configure individual phase
-- [ ] Build `src/components/dashboard/bot/TemplateSelector.tsx` — select starting template
-- [ ] Build `src/app/(tenant)/dashboard/bot/flow/page.tsx` — flow builder page
-- [ ] Build `src/app/api/bot/phases/route.ts` — phases CRUD API
-- [ ] Integrate template selection into onboarding flow
-- [ ] Component tests: phase builder interactions
-- [ ] E2E tests: build flow in UI → bot follows it
+- [x] Build `src/components/dashboard/flow/PhaseList.tsx` — add/remove/reorder phases (drag-to-reorder with @dnd-kit)
+- [x] Build `src/components/dashboard/flow/PhaseCard.tsx` — collapsible card with drag handle
+- [x] Build `src/components/dashboard/flow/PhaseForm.tsx` — configure individual phase (name, tone, system prompt, goals, max messages, transition hint, action buttons, image attachments)
+- [x] Build `src/components/dashboard/flow/TemplateSelector.tsx` — select starting template
+- [x] Build `src/components/dashboard/flow/FlowPanel.tsx` — flow builder container (wired into BotClient)
+- [x] Build `src/components/dashboard/flow/ImageAttachmentPicker.tsx` — multi-select knowledge images
+- [x] Build `src/components/dashboard/flow/ActionButtonPicker.tsx` — multi-select action pages
+- [x] Build `src/hooks/useFlowPhases.ts` — CRUD, reorder, and seed hook
+- [x] Build `src/app/api/bot/phases/route.ts` — GET (list) + POST (create)
+- [x] Build `src/app/api/bot/phases/[id]/route.ts` — PATCH (update) + DELETE
+- [x] Build `src/app/api/bot/phases/reorder/route.ts` — POST (bulk reorder)
+- [x] Build `src/app/api/bot/phases/seed/route.ts` — POST (seed from template)
+- [x] Build `src/app/api/bot/action-pages/route.ts` — GET (list action pages for picker)
+- [x] Build `src/app/api/knowledge/images/list/route.ts` — GET (list images for picker)
+- [x] Integrate template selection into onboarding flow
+- [x] Component tests: phase builder interactions
+- [x] E2E tests: build flow in UI → bot follows it
 
 ---
 
@@ -120,3 +129,27 @@
 - [ ] Implement bot pause/resume per conversation
 - [ ] Build notification system for flagged conversations
 - [ ] E2E tests: bot escalates → human sees → takes over
+
+---
+
+## Phase 9: Campaign Flow Builder
+
+- [x] Create migration: campaigns, campaign_phases, lead_campaign_assignments, experiments, experiment_campaigns, campaign_conversions tables
+- [x] Create migration: data migration from bot_flow_phases → campaign_phases
+- [x] Update TypeScript database types
+- [x] Build `src/lib/ai/campaign-assignment.ts` — lead campaign assignment with weighted random
+- [x] Build `src/lib/ai/conversion-detector.ts` — conversion detection from lead events
+- [x] Build campaign CRUD API (`/api/campaigns/`)
+- [x] Build campaign phases API (`/api/campaigns/[id]/phases/`)
+- [x] Build experiments API (`/api/experiments/`)
+- [x] Build campaign metrics API (`/api/campaigns/[id]/metrics/`)
+- [x] Wire conversation engine to use campaign_phases + assignment
+- [x] Update phase machine to track exit_reason on phase transitions
+- [x] Add Campaigns nav item, campaign list page
+- [x] Build campaign editor (Flow / Settings / Metrics tabs)
+- [x] Build experiments UI (list, create, detail, promote winner)
+- [x] Build phase funnel metrics component
+- [x] Build drop-off scanner cron (`/api/cron/drop-off-scanner`)
+- [x] Remove Flow Builder tab from Bot page
+- [x] Unit tests: campaign assignment, conversion detector, all API routes
+- [x] E2E tests: create campaign → lead assigned → converts → metrics update

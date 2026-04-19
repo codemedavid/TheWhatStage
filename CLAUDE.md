@@ -13,6 +13,7 @@ The chatbot acts as a funnel. Tenants configure:
 2. **Bot goal** — qualify leads, sell, understand intent, or collect lead info, book appointment
 3. **Action buttons** — buttons sent in chat that open web pages (forms, calendars, product pages, sales pages)
 4. **Stages** — leads move through pipeline stages based on overall context, actions taken this reasoned by the ai based on all of these
+5. **Campaigns** — conversation flows are organized into campaigns, each with a conversion goal. Tenants can run A/B experiments across campaigns to find what converts best.
 
 Leads interact primarily through web pages launched from Messenger. The web pages carry the Facebook user ID (via postback/echo mechanisms) so every action is tied back to the Messenger lead. Leads receive Messenger notifications when they complete actions.
 
@@ -23,6 +24,7 @@ Leads interact primarily through web pages launched from Messenger. The web page
 - **Action Pages** — web pages triggered from Messenger (lead forms, calendar booking, sales pages, e-comm product pages with cart/checkout)
 - **Workflow Engine** — automation triggers on actions/events, if/else conditions, send messages/pictures/follow-ups
 - **Lead Management** — pipeline stages, activity tracking (form fills, bookings, purchases), automatic stage movement
+- **Campaign System** — multi-campaign management with A/B experiments, per-phase success metrics, drop-off detection, and conversion tracking
 
 ## Tech Stack
 
