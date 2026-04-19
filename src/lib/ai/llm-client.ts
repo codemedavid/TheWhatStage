@@ -1,7 +1,7 @@
 const HF_API_URL =
   "https://router.huggingface.co/novita/v3/openai/v1/chat/completions";
 
-const MODEL = "meta-llama/Llama-3.1-8B-Instruct";
+const MODEL = "Qwen/Qwen3-8B-Instruct";
 const FETCH_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 2;
 const RETRY_BACKOFF_MS = 1_000;
@@ -10,6 +10,7 @@ export interface LLMConfig {
   temperature?: number;
   topP?: number;
   maxTokens?: number;
+  responseFormat?: "json_object" | "text";
 }
 
 export interface LLMResponse {
@@ -35,22 +36,27 @@ export async function generateResponse(
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
+    const bodyPayload: Record<string, unknown> = {
+      model: MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature: config?.temperature ?? 0.4,
+      top_p: config?.topP ?? 0.9,
+      max_tokens: config?.maxTokens ?? 512,
+    };
+    if ((config?.responseFormat ?? "json_object") === "json_object") {
+      bodyPayload.response_format = { type: "json_object" };
+    }
+
     const response = await fetch(HF_API_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        temperature: config?.temperature ?? 0.7,
-        top_p: config?.topP ?? 0.9,
-        max_tokens: config?.maxTokens ?? 512,
-      }),
+      body: JSON.stringify(bodyPayload),
       signal: controller.signal,
     });
 

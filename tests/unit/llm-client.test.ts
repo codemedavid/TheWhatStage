@@ -41,9 +41,10 @@ describe("generateResponse", () => {
       { role: "system", content: "You are helpful." },
       { role: "user", content: "Hi there" },
     ]);
-    expect(body.model).toBe("meta-llama/Llama-3.1-8B-Instruct");
-    expect(body.temperature).toBe(0.7);
+    expect(body.model).toBe("Qwen/Qwen3-8B-Instruct");
+    expect(body.temperature).toBe(0.4);
     expect(body.max_tokens).toBe(512);
+    expect(body.response_format).toEqual({ type: "json_object" });
   });
 
   it("uses custom config when provided", async () => {
@@ -136,5 +137,19 @@ describe("generateResponse", () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(3); // initial + 2 retries
+  });
+
+  it("omits response_format when responseFormat is 'text'", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "hours, open, schedule" }, finish_reason: "stop" }],
+      }),
+    });
+
+    await generateResponse("System", "User", { responseFormat: "text" });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.response_format).toBeUndefined();
   });
 });
