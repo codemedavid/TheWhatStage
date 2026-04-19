@@ -27,6 +27,7 @@ export interface Database {
         fb_app_secret: string | null;
         fb_verify_token: string | null;
         max_images_per_response: number;
+        handoff_timeout_hours: number | null;
         created_at: string;
       }>;
       tenant_members: TableRow<{
@@ -67,6 +68,9 @@ export interface Database {
         lead_id: string;
         last_message_at: string;
         needs_human: boolean;
+        bot_paused_at: string | null;
+        escalation_reason: string | null;
+        escalation_message_id: string | null;
       }>;
       messages: TableRow<{
         id: string;
@@ -194,6 +198,15 @@ export interface Database {
         phase_id: string;
         entered_at: string;
         message_count: number;
+      }>;
+      escalation_events: TableRow<{
+        id: string;
+        conversation_id: string;
+        tenant_id: string;
+        type: "escalated" | "agent_took_over" | "bot_resumed";
+        reason: string | null;
+        agent_user_id: string | null;
+        created_at: string;
       }>;
       workflows: TableRow<{
         id: string;
