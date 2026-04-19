@@ -198,6 +198,67 @@ export interface Database {
         phase_id: string;
         entered_at: string;
         message_count: number;
+        exited_at: string | null;
+        exit_reason: "advanced" | "dropped" | "converted" | "human_handoff" | null;
+        follow_ups_sent_at: string | null;
+      }>;
+      campaigns: TableRow<{
+        id: string;
+        tenant_id: string;
+        name: string;
+        description: string | null;
+        goal: "form_submit" | "appointment_booked" | "purchase" | "stage_reached";
+        goal_config: Record<string, unknown>;
+        is_primary: boolean;
+        status: "draft" | "active" | "paused" | "archived";
+        follow_up_delay_minutes: number;
+        follow_up_message: string | null;
+        created_at: string;
+        updated_at: string;
+      }>;
+      campaign_phases: TableRow<{
+        id: string;
+        campaign_id: string;
+        tenant_id: string;
+        name: string;
+        order_index: number;
+        max_messages: number;
+        system_prompt: string;
+        tone: string | null;
+        goals: string | null;
+        transition_hint: string | null;
+        action_button_ids: string[];
+        image_attachment_ids: string[];
+        created_at: string;
+      }>;
+      lead_campaign_assignments: TableRow<{
+        id: string;
+        lead_id: string;
+        campaign_id: string;
+        assigned_at: string;
+      }>;
+      experiments: TableRow<{
+        id: string;
+        tenant_id: string;
+        name: string;
+        status: "draft" | "running" | "paused" | "completed";
+        min_sample_size: number;
+        started_at: string | null;
+        ended_at: string | null;
+        winner_campaign_id: string | null;
+        created_at: string;
+      }>;
+      experiment_campaigns: TableRow<{
+        experiment_id: string;
+        campaign_id: string;
+        weight: number;
+      }>;
+      campaign_conversions: TableRow<{
+        id: string;
+        campaign_id: string;
+        lead_id: string;
+        converted_at: string;
+        metadata: Record<string, unknown>;
       }>;
       escalation_events: TableRow<{
         id: string;
