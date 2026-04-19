@@ -50,7 +50,7 @@ export async function PATCH(
   const service = createServiceClient();
   const { data, error } = await service
     .from("bot_rules")
-    .update(updates)
+    .update(updates as never)
     .eq("id", params.id)
     .eq("tenant_id", session.tenantId)
     .select("id, rule_text, category, enabled, created_at")

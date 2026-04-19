@@ -73,7 +73,7 @@ export async function POST(request: Request) {
   const dbCategory = CATEGORY_MAP[parsed.data.category];
   const { data, error } = await service
     .from("bot_rules")
-    .insert({ tenant_id: session.tenantId, rule_text: parsed.data.rule_text, category: dbCategory })
+    .insert({ tenant_id: session.tenantId, rule_text: parsed.data.rule_text, category: dbCategory as never })
     .select("id, rule_text, category, enabled, created_at")
     .single();
 

@@ -3,6 +3,29 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { z } from "zod";
 
+export async function GET() {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const service = createServiceClient();
+  const { data: membership } = await service
+    .from("tenant_members")
+    .select("tenant_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!membership) return NextResponse.json({ error: "No tenant membership" }, { status: 403 });
+
+  const { data } = await service
+    .from("tenants")
+    .select("handoff_timeout_hours, persona_tone, custom_instructions")
+    .eq("id", membership.tenant_id)
+    .single();
+
+  return NextResponse.json(data ?? {});
+}
+
 const VALID_TIMEOUT_VALUES = [1, 6, 12, 24, 48];
 
 const schema = z.object({
@@ -62,7 +85,7 @@ export async function PATCH(request: Request) {
 
   const { error } = await service
     .from("tenants")
-    .update(updates)
+    .update(updates as never)
     .eq("id", membership.tenant_id);
 
   if (error) {

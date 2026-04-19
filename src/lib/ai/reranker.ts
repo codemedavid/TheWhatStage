@@ -38,7 +38,7 @@ export async function rerankChunks(
 
     const scores = await client.textClassification({
       model: MODEL,
-      inputs: inputs as Parameters<typeof client.textClassification>[0]["inputs"],
+      inputs: inputs as never,
     });
 
     clearTimeout(timeoutId);
