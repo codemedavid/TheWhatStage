@@ -55,6 +55,24 @@ const engineInput = {
 // ---------------------------------------------------------------------------
 
 /**
+ * Mock: conversations SELECT (gate check — bot_paused_at)
+ * Chain: .from().select().eq().single()
+ * Called first in handleMessage before any other logic.
+ */
+function mockConversationGateCheck(botPausedAt: string | null = null) {
+  mockFrom.mockReturnValueOnce({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: { bot_paused_at: botPausedAt },
+          error: null,
+        }),
+      }),
+    }),
+  });
+}
+
+/**
  * Mock: conversation_phases SELECT (getCurrentPhase)
  * Chain: .from().select().eq().order().limit().single()
  */
@@ -176,6 +194,16 @@ function mockConversationEscalate() {
 }
 
 /**
+ * Mock: escalation_events INSERT
+ * Chain: .from().insert()
+ */
+function mockEscalationEventInsert() {
+  mockFrom.mockReturnValueOnce({
+    insert: vi.fn().mockResolvedValue({ error: null }),
+  });
+}
+
+/**
  * Mock: bot_flow_phases SELECT with gt() (advancePhase — find next phase)
  * Chain: .from().select().eq().gt().order().limit().single()
  */
@@ -290,6 +318,9 @@ describe("Conversation Engine Integration", () => {
   // Test 1: Full pipeline — message → phase → RAG → LLM → response (stay)
   // -------------------------------------------------------------------------
   it("full pipeline: stay action returns correct output", async () => {
+    // DB call 0: gate check — conversations SELECT bot_paused_at (not paused)
+    mockConversationGateCheck(null);
+
     // DB call 1: getCurrentPhase → conversation_phases SELECT
     mockGetCurrentPhase(phaseRow);
 
@@ -331,6 +362,9 @@ describe("Conversation Engine Integration", () => {
   // Test 2: Phase advancement
   // -------------------------------------------------------------------------
   it("phase advancement: advance action triggers advancePhase side effect", async () => {
+    // DB call 0: gate check — conversations SELECT bot_paused_at (not paused)
+    mockConversationGateCheck(null);
+
     // DB call 1: getCurrentPhase → conversation_phases SELECT
     mockGetCurrentPhase(phaseRow);
 
@@ -389,6 +423,9 @@ describe("Conversation Engine Integration", () => {
   // Test 3: Escalation on low confidence
   // -------------------------------------------------------------------------
   it("escalation: low confidence triggers escalate side effect", async () => {
+    // DB call 0: gate check — conversations SELECT bot_paused_at (not paused)
+    mockConversationGateCheck(null);
+
     // DB call 1: getCurrentPhase → conversation_phases SELECT
     mockGetCurrentPhase(phaseRow);
 
@@ -417,8 +454,10 @@ describe("Conversation Engine Integration", () => {
     // Escalate side effect:
     //   call 4: conversations UPDATE (needs_human = true)
     mockConversationEscalate();
+    //   call 5: escalation_events INSERT
+    mockEscalationEventInsert();
 
-    // DB calls 5 & 6: incrementMessageCount (read then write)
+    // DB calls 6 & 7: incrementMessageCount (read then write)
     mockIncrementRead(0);
     mockIncrementWrite();
 

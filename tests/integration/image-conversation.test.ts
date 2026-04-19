@@ -88,8 +88,20 @@ describe("Full conversation with images", () => {
       }),
     });
 
-    // Tenant config
+    // Tenant config + gate check
     mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === "conversations") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { bot_paused_at: null },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "tenants") {
         return {
           select: vi.fn().mockReturnValue({
@@ -161,6 +173,18 @@ describe("Full conversation with images", () => {
     });
 
     mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === "conversations") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { bot_paused_at: null },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "tenants") {
         return {
           select: vi.fn().mockReturnValue({
