@@ -6,6 +6,7 @@ import Link from "next/link";
 import { clsx } from "clsx";
 import CampaignFlowPanel from "@/components/dashboard/campaigns/CampaignFlowPanel";
 import CampaignForm from "@/components/dashboard/campaigns/CampaignForm";
+import PhaseMetricsFunnel from "@/components/dashboard/campaigns/PhaseMetricsFunnel";
 import type { Campaign } from "@/hooks/useCampaigns";
 
 type Tab = "flow" | "settings" | "metrics";
@@ -67,11 +68,7 @@ export default function CampaignEditorClient({
 
       {tab === "flow" && <CampaignFlowPanel campaignId={campaign.id} />}
       {tab === "settings" && <CampaignForm campaign={campaign} onSave={handleSave} />}
-      {tab === "metrics" && (
-        <div className="text-sm text-[var(--ws-text-muted)]">
-          Metrics will be added in the metrics task.
-        </div>
-      )}
+      {tab === "metrics" && <PhaseMetricsFunnel campaignId={campaign.id} />}
     </div>
   );
 }
