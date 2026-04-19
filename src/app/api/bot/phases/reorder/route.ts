@@ -54,17 +54,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid phase IDs" }, { status: 400 });
   }
 
-  const rows = parsed.data.order.map((item) => ({
-    id: item.id,
-    tenant_id: tenantId,
-    order_index: item.order_index,
-  }));
+  // Update each phase's order_index individually (avoids upsert NOT NULL issues)
+  const updates = parsed.data.order.map((item) =>
+    service
+      .from("bot_flow_phases")
+      .update({ order_index: item.order_index })
+      .eq("id", item.id)
+      .eq("tenant_id", tenantId)
+  );
 
-  const { error } = await service
-    .from("bot_flow_phases")
-    .upsert(rows, { onConflict: "id" });
+  const results = await Promise.all(updates);
+  const failed = results.find((r) => r.error);
 
-  if (error) {
+  if (failed?.error) {
     return NextResponse.json({ error: "Failed to reorder phases" }, { status: 500 });
   }
 
