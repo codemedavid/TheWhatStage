@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
+import { useEscalationCount } from "@/hooks/useEscalationCount";
 
 interface NavItem {
   href: string;
@@ -41,6 +42,7 @@ function isActive(pathname: string, href: string, exact?: boolean) {
 export default function DashboardNav({ tenantSlug }: { tenantSlug: string }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const escalationCount = useEscalationCount();
 
   const navContent = (
     <>
@@ -79,6 +81,11 @@ export default function DashboardNav({ tenantSlug }: { tenantSlug: string }) {
               )}
               <item.icon className="h-4 w-4" />
               {item.label}
+              {item.label === "Inbox" && escalationCount > 0 && (
+                <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--ws-danger)] px-1.5 text-[10px] font-bold text-white">
+                  {escalationCount}
+                </span>
+              )}
             </Link>
           );
         })}

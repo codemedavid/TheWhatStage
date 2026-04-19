@@ -45,6 +45,23 @@ function KnowledgeTab() {
 
 function RulesTab() {
   const [showAddRule, setShowAddRule] = useState(false);
+  const [handoffTimeout, setHandoffTimeout] = useState<number | null>(24);
+  const [savingTimeout, setSavingTimeout] = useState(false);
+
+  const handleTimeoutChange = async (value: string) => {
+    const hours = value === "never" ? null : parseInt(value, 10);
+    setHandoffTimeout(hours);
+    setSavingTimeout(true);
+    try {
+      await fetch("/api/bot/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handoff_timeout_hours: hours }),
+      });
+    } catch {} finally {
+      setSavingTimeout(false);
+    }
+  };
 
   return (
     <div>
@@ -120,6 +137,29 @@ function RulesTab() {
             rows={4}
             className="w-full rounded-lg border border-[var(--ws-border-strong)] bg-white px-3 py-2 text-sm text-[var(--ws-text-primary)] placeholder-[var(--ws-text-muted)] outline-none focus:border-[var(--ws-accent)]"
           />
+        </div>
+      </div>
+
+      <div className="mt-6 border-t border-[var(--ws-border)] pt-6">
+        <h3 className="mb-1 text-sm font-medium text-[var(--ws-text-primary)]">Human Handoff</h3>
+        <p className="mb-3 text-xs text-[var(--ws-text-muted)]">
+          When a human agent takes over a conversation, the bot will automatically resume after this period of agent inactivity.
+        </p>
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-[var(--ws-text-secondary)]">Auto-resume bot after</label>
+          <select
+            value={handoffTimeout === null ? "never" : String(handoffTimeout)}
+            onChange={(e) => handleTimeoutChange(e.target.value)}
+            disabled={savingTimeout}
+            className="rounded-lg border border-[var(--ws-border)] bg-white px-3 py-2 text-sm text-[var(--ws-text-primary)] outline-none focus:border-[var(--ws-accent)]"
+          >
+            <option value="1">1 hour</option>
+            <option value="6">6 hours</option>
+            <option value="12">12 hours</option>
+            <option value="24">24 hours</option>
+            <option value="48">48 hours</option>
+            <option value="never">Never</option>
+          </select>
         </div>
       </div>
     </div>
