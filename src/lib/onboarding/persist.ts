@@ -27,7 +27,7 @@ export async function persistResults(
   const tenantId: string = tenant.id;
 
   // 2. Update tenant with business context
-  await service
+  const { error: tenantUpdateErr } = await service
     .from("tenants")
     .update({
       business_description: input.businessDescription,
@@ -37,6 +37,7 @@ export async function persistResults(
       website_url: input.websiteUrl || null,
     })
     .eq("id", tenantId);
+  if (tenantUpdateErr) throw new Error(`Tenant update failed: ${tenantUpdateErr.message}`);
 
   // 3. Update user metadata
   await service.auth.admin.updateUserById(userId, {
@@ -101,7 +102,7 @@ export async function persistResults(
         tenant_id: tenantId,
         content: chunkContent,
         kb_type: "general",
-        embedding: JSON.stringify(results.embeddings!.faqEmbeddings[i]),
+        embedding: results.embeddings!.faqEmbeddings[i],
       });
     }
   }
@@ -125,7 +126,7 @@ export async function persistResults(
         tenant_id: tenantId,
         content: results.generalArticle,
         kb_type: "general",
-        embedding: JSON.stringify(results.embeddings!.generalArticleEmbedding),
+        embedding: results.embeddings!.generalArticleEmbedding,
       });
     }
   }
@@ -149,7 +150,7 @@ export async function persistResults(
         tenant_id: tenantId,
         content: results.urlArticle,
         kb_type: "general",
-        embedding: JSON.stringify(results.embeddings.urlArticleEmbedding),
+        embedding: results.embeddings.urlArticleEmbedding,
       });
     }
   }
