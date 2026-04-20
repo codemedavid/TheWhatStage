@@ -25,23 +25,20 @@ export async function POST(req: Request) {
   const parsed = retrySchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  // 3. Load generation record (use service client)
+  // 3. Atomic status transition: only succeeds if status is currently 'failed'
   const service = createServiceClient();
-  const { data: gen, error: genErr } = await service
-    .from("onboarding_generations")
-    .select("*")
-    .eq("id", parsed.data.generationId)
-    .eq("user_id", user.id)
-    .single();
-
-  if (genErr || !gen) return Response.json({ error: "Generation not found" }, { status: 404 });
-  if (gen.status !== "failed") return Response.json({ error: "Can only retry failed generations" }, { status: 400 });
-
-  // 4. Mark as running again
-  await service
+  const { data: updated, error: transitionErr } = await service
     .from("onboarding_generations")
     .update({ status: "running", error: null, updated_at: new Date().toISOString() })
-    .eq("id", gen.id);
+    .eq("id", parsed.data.generationId)
+    .eq("user_id", user.id)
+    .eq("status", "failed")
+    .select("*");
+
+  if (transitionErr || !updated || updated.length === 0) {
+    return Response.json({ error: "Generation not found or not in failed state" }, { status: 409 });
+  }
+  const gen = updated[0];
 
   // 5. SSE stream — resume from checkpoint
   const encoder = new TextEncoder();
@@ -70,8 +67,14 @@ export async function POST(req: Request) {
         );
 
         // Persist — only if tenant hasn't been created yet
-        // Check if tenant_id is already set (from a previous partial run)
-        if (!gen.tenant_id) {
+        // Re-fetch to get latest tenant_id (guards against double-persist on concurrent retries)
+        const { data: freshGen } = await service
+          .from("onboarding_generations")
+          .select("tenant_id")
+          .eq("id", parsed.data.generationId)
+          .single();
+
+        if (!freshGen?.tenant_id) {
           await persistResults(user.id, genInput, results, gen.id, service);
         }
         send({ step: "persisted", status: "done" });

@@ -18,7 +18,7 @@ export async function GET() {
     );
   }
 
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/onboarding/fb-callback`;
+  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/settings/fb-callback`;
 
   const params = new URLSearchParams({
     client_id: appId,
