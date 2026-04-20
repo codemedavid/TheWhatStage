@@ -71,6 +71,7 @@ function reducer(
 export default function OnboardingWizard() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   // Step navigation handlers
   function handleProfileNext(patch: {
@@ -118,7 +119,7 @@ export default function OnboardingWizard() {
           </p>
           <div className="flex gap-3 justify-center">
             <button
-              onClick={() => setGenerationError(null)}
+              onClick={() => { setRetryKey((k) => k + 1); setGenerationError(null); }}
               className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground"
             >
               Retry
@@ -126,6 +127,7 @@ export default function OnboardingWizard() {
             <button
               onClick={() => {
                 dispatch({ type: "SET_FIELD", field: "generationId", value: "" });
+                setRetryKey((k) => k + 1);
                 setGenerationError(null);
               }}
               className="px-4 py-2 text-sm rounded-md border opacity-60"
@@ -219,6 +221,7 @@ export default function OnboardingWizard() {
       case "generation":
         return (
           <GenerationStep
+            key={retryKey}
             formData={{
               businessType: state.industry,
               botGoal: state.botGoal,

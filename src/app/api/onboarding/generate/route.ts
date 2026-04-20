@@ -114,7 +114,7 @@ export async function POST(req: Request) {
           articleCount: (results.generalArticle ? 1 : 0) + (results.urlArticle ? 1 : 0),
           sampleGreeting: results.phases![0]?.system_prompt.slice(0, 200) ?? "",
         };
-        send({ step: "complete", status: "done", data: { preview } });
+        send({ step: "complete", status: "done", data: { preview }, generationId: gen.id });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         await service
