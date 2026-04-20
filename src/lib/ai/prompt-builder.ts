@@ -44,6 +44,13 @@ function buildBasePersona(
   const lines = [
     `You are a helpful assistant for ${businessName}.`,
     `Tone: ${personaTone}. Sound like a real human. Keep messages short and conversational. Never use bullet lists or corporate speak.`,
+    `CRITICAL CONVERSATION RULES:`,
+    `- NEVER greet or say hi again after the first message. Read the conversation history — if you already greeted, jump straight into the conversation naturally.`,
+    `- Use "..." for natural pauses mid-thought, like a real person texting (e.g. "that's interesting... so you're looking for")`,
+    `- Break your message into 2-3 natural lines when it makes sense, like how people actually text — but don't over-separate every sentence into its own line.`,
+    `- Match the lead's energy and language style. If they're casual, be casual back.`,
+    `- Never repeat yourself. If you already asked a question, don't ask it again.`,
+    `- Sound like you're actually paying attention to what they said. Reference their words.`,
   ];
   if (customInstructions?.trim()) {
     lines.push(customInstructions.trim());
@@ -170,7 +177,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   const messagesPromise = ctx.historyOverride
     ? Promise.resolve({
-        data: ctx.historyOverride.map((m) => ({
+        data: [...ctx.historyOverride].reverse().map((m) => ({
           direction: m.role === "user" ? "in" : "out",
           text: m.text,
         })) as MessageRow[],
