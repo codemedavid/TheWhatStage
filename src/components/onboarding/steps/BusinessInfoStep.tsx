@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MAIN_ACTION_OPTIONS, type MainAction } from "@/lib/onboarding/generation-types";
 
 interface BusinessInfoStepProps {
@@ -29,6 +29,11 @@ export default function BusinessInfoStep({
   const [mainAction, setMainAction] = useState<MainAction | "">(initialAction);
   const [differentiator, setDifferentiator] = useState(initialDiff);
   const [qualificationCriteria, setQualificationCriteria] = useState(initialQual);
+
+  useEffect(() => setBusinessDescription(initialDesc), [initialDesc]);
+  useEffect(() => setMainAction(initialAction), [initialAction]);
+  useEffect(() => setDifferentiator(initialDiff), [initialDiff]);
+  useEffect(() => setQualificationCriteria(initialQual), [initialQual]);
 
   const canContinue =
     businessDescription.trim().length >= 10 &&

@@ -71,7 +71,12 @@ export default function GenerationStep({
 
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
-          const msg: SSEMessage = JSON.parse(line.slice(6));
+          let msg: SSEMessage;
+          try {
+            msg = JSON.parse(line.slice(6)) as SSEMessage;
+          } catch {
+            continue; // skip malformed frames
+          }
 
           // Terminal completion signal — check before generic status branches
           if (msg.step === "complete" && msg.data?.preview) {
@@ -114,6 +119,8 @@ export default function GenerationStep({
           }
         }
       }
+    }).catch(() => {
+      onError("Network error. Please check your connection and try again.", "");
     });
   }, [formData, onComplete, onError, retryGenerationId]);
 

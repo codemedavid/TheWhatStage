@@ -5,7 +5,6 @@ import type { PreviewData } from "@/lib/onboarding/generation-types";
 
 interface PreviewStepProps {
   preview: PreviewData;
-  tenantSlug: string;
 }
 
 const GOAL_LABELS: Record<string, string> = {
@@ -15,7 +14,7 @@ const GOAL_LABELS: Record<string, string> = {
   stage_reached: "Stage Reached",
 };
 
-export default function PreviewStep({ preview, tenantSlug: _tenantSlug }: PreviewStepProps) {
+export default function PreviewStep({ preview }: PreviewStepProps) {
   const [finalizing, setFinalizing] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,7 +23,10 @@ export default function PreviewStep({ preview, tenantSlug: _tenantSlug }: Previe
     setError("");
     try {
       const res = await fetch("/api/onboarding/finalize", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to finalize");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? "Failed to finalize");
+      }
       window.location.href = "/app/bot";
     } catch {
       setFinalizing(false);
@@ -89,6 +91,7 @@ export default function PreviewStep({ preview, tenantSlug: _tenantSlug }: Previe
 
       <div className="flex justify-end mt-2">
         <button
+          type="button"
           onClick={handleFinalize}
           disabled={finalizing}
           className="px-6 py-2.5 text-sm rounded-md bg-primary text-primary-foreground disabled:opacity-50 font-medium"
