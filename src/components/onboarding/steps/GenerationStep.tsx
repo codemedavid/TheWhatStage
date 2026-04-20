@@ -73,6 +73,19 @@ export default function GenerationStep({
           if (!line.startsWith("data: ")) continue;
           const msg: SSEMessage = JSON.parse(line.slice(6));
 
+          // Terminal completion signal — check before generic status branches
+          if (msg.step === "complete" && msg.data?.preview) {
+            setStepStatuses((prev) => {
+              const next = { ...prev };
+              GENERATION_STEPS.forEach(({ key }) => {
+                if (next[key] !== "failed") next[key] = "done";
+              });
+              return next;
+            });
+            onComplete(msg.data.preview, msg.generationId);
+            continue;
+          }
+
           if (msg.status === "done") {
             setStepStatuses((prev) => {
               const next = { ...prev };
@@ -89,10 +102,6 @@ export default function GenerationStep({
               }
               return next;
             });
-
-            if (msg.step === "complete" && msg.data?.preview) {
-              onComplete(msg.data.preview, msg.generationId);
-            }
           } else if (msg.status === "failed") {
             setStepStatuses((prev) => {
               const next = { ...prev };
