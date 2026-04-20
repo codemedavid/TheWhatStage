@@ -22,6 +22,7 @@ export interface PromptContext {
   ragChunks: ChunkResult[];
   images?: KnowledgeImage[];
   testMode?: boolean;
+  historyOverride?: { role: "user" | "bot"; text: string }[];
 }
 
 interface BotRule {
@@ -167,14 +168,22 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     .eq("tenant_id", ctx.tenantId)
     .eq("enabled", true);
 
-  const messagesPromise = ctx.testMode
-    ? Promise.resolve({ data: [] as MessageRow[], error: null })
-    : supabase
-        .from("messages")
-        .select("direction, text")
-        .eq("conversation_id", ctx.conversationId)
-        .order("created_at", { ascending: false })
-        .limit(MAX_HISTORY_MESSAGES);
+  const messagesPromise = ctx.historyOverride
+    ? Promise.resolve({
+        data: ctx.historyOverride.map((m) => ({
+          direction: m.role === "user" ? "in" : "out",
+          text: m.text,
+        })) as MessageRow[],
+        error: null,
+      })
+    : ctx.testMode
+      ? Promise.resolve({ data: [] as MessageRow[], error: null })
+      : supabase
+          .from("messages")
+          .select("direction, text")
+          .eq("conversation_id", ctx.conversationId)
+          .order("created_at", { ascending: false })
+          .limit(MAX_HISTORY_MESSAGES);
 
   const personaPromise = supabase
     .from("tenants")
