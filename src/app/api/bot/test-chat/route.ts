@@ -164,13 +164,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No active phase" }, { status: 500 });
   }
 
-  const { data: tenant } = await service
+  // Fetch tenant + campaign info in parallel
+  const tenantPromise = service
     .from("tenants")
     .select("name")
     .eq("id", tenantId)
     .single();
 
+  const campaignPromise = session.campaignId
+    ? service
+        .from("campaigns")
+        .select("name, description, goal")
+        .eq("id", session.campaignId)
+        .single()
+    : Promise.resolve({ data: null });
+
+  const [{ data: tenant }, { data: campaignData }] = await Promise.all([
+    tenantPromise,
+    campaignPromise,
+  ]);
+
   const businessName = tenant?.name ?? "Your Business";
+  const campaignContext = campaignData
+    ? { name: campaignData.name, description: campaignData.description, goal: campaignData.goal }
+    : undefined;
 
   // Add user message to history
   addMessage(session, "user", message);
@@ -188,6 +205,7 @@ export async function POST(request: Request) {
     ragChunks: retrieval.chunks,
     testMode: false,
     historyOverride: session.history,
+    campaign: campaignContext,
   });
 
   const llmResponse = await generateResponse(systemPrompt, message);

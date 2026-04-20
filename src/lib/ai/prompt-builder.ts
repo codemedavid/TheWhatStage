@@ -14,6 +14,12 @@ export interface KnowledgeImage {
   context_hint: string | null;
 }
 
+export interface CampaignContext {
+  name: string;
+  description: string | null;
+  goal: string;
+}
+
 export interface PromptContext {
   tenantId: string;
   businessName: string;
@@ -23,6 +29,7 @@ export interface PromptContext {
   images?: KnowledgeImage[];
   testMode?: boolean;
   historyOverride?: { role: "user" | "bot"; text: string }[];
+  campaign?: CampaignContext;
 }
 
 interface BotRule {
@@ -161,7 +168,43 @@ function buildAvailableImages(images?: KnowledgeImage[]): string {
   return lines.join("\n");
 }
 
-// Layer 7 — with cited_chunks
+// Layer 7 — business offering & direction
+function buildOfferingContext(
+  businessType: string,
+  botGoal: string,
+  campaign?: CampaignContext
+): string {
+  const goalLabels: Record<string, string> = {
+    qualify_leads: "qualify them and understand if they're a good fit",
+    sell: "guide them toward making a purchase",
+    understand_intent: "figure out what they actually need",
+    collect_lead_info: "collect their contact info naturally",
+    book_appointment: "get them to book a call or appointment",
+  };
+
+  const goalDirection = goalLabels[botGoal] ?? botGoal;
+
+  const lines = [
+    "--- YOUR MISSION ---",
+    `You work for a ${businessType} business. Your job is to ${goalDirection}.`,
+    `Every message you send should subtly move the conversation toward this goal. Don't be pushy — be strategic. Guide naturally.`,
+  ];
+
+  if (campaign) {
+    lines.push(`\nCurrent campaign: "${campaign.name}"`);
+    if (campaign.description) {
+      lines.push(`What we're offering: ${campaign.description}`);
+    }
+    lines.push(`Campaign goal: ${campaign.goal}`);
+    lines.push(`Always keep this offering in mind. You know what we sell — weave it into conversation naturally when relevant.`);
+  }
+
+  lines.push(`\nSTRATEGY: Be aware of what you're selling at all times. Don't wait for them to ask — find natural moments to bring it up. But don't force it. Follow the phase flow.`);
+
+  return lines.join("\n");
+}
+
+// Layer 8 — with cited_chunks
 function buildDecisionInstructions(): string {
   return `--- RESPONSE FORMAT ---
 You MUST respond with a JSON object and nothing else. No text before or after the JSON.
@@ -208,9 +251,9 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   const personaPromise = supabase
     .from("tenants")
-    .select("persona_tone, custom_instructions")
+    .select("persona_tone, custom_instructions, business_type, bot_goal")
     .eq("id", ctx.tenantId)
-    .single() as unknown as Promise<{ data: { persona_tone: string; custom_instructions: string | null } | null; error: unknown }>;
+    .single() as unknown as Promise<{ data: { persona_tone: string; custom_instructions: string | null; business_type: string; bot_goal: string } | null; error: unknown }>;
 
   const [rulesResult, messagesResult, personaResult] = await Promise.all([
     rulesPromise,
@@ -222,16 +265,19 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const messages: MessageRow[] = messagesResult.data ?? [];
   const personaTone: string = personaResult.data?.persona_tone ?? "friendly";
   const customInstructions: string | null = personaResult.data?.custom_instructions ?? null;
+  const businessType: string = personaResult.data?.business_type ?? "services";
+  const botGoal: string = personaResult.data?.bot_goal ?? "qualify_leads";
 
   const layer1 = buildBasePersona(ctx.businessName, personaTone, customInstructions);
   const layer2 = buildBotRules(rules);
-  const layer3 = buildPhaseContext(ctx.currentPhase, ctx.testMode ?? false);
-  const layer4 = buildConversationHistory(messages);
-  const layer5 = buildRetrievedKnowledge(ctx.ragChunks);
-  const layer6 = buildAvailableImages(ctx.images);
-  const layer7 = buildDecisionInstructions();
+  const layer3 = buildOfferingContext(businessType, botGoal, ctx.campaign);
+  const layer4 = buildPhaseContext(ctx.currentPhase, ctx.testMode ?? false);
+  const layer5 = buildConversationHistory(messages);
+  const layer6 = buildRetrievedKnowledge(ctx.ragChunks);
+  const layer7 = buildAvailableImages(ctx.images);
+  const layer8 = buildDecisionInstructions();
 
-  return [layer1, layer2, layer3, layer4, layer5, layer6, layer7]
+  return [layer1, layer2, layer3, layer4, layer5, layer6, layer7, layer8]
     .filter((l) => l.length > 0)
     .join("\n\n");
 }
