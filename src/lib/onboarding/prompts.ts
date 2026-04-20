@@ -1,7 +1,9 @@
 // src/lib/onboarding/prompts.ts
 import type { BusinessContext, GeneratedPhaseOutline } from "./generation-types";
 
-interface PromptPair {
+const MAX_SCRAPED_CONTENT_CHARS = 3000; // leaves room in context window for business context summary
+
+export interface PromptPair {
   systemPrompt: string;
   userMessage: string;
 }
@@ -102,7 +104,7 @@ export function buildUrlArticlePrompt(
   ctx: BusinessContext,
   scrapedContent: string
 ): PromptPair {
-  const trimmed = scrapedContent.slice(0, 3000);
+  const trimmed = scrapedContent.slice(0, MAX_SCRAPED_CONTENT_CHARS);
   return {
     systemPrompt: `You are a content writer creating a knowledge base article from a business website. Synthesize the website content into a structured article covering:
 - Products/services with real names and details from the site

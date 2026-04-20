@@ -35,4 +35,28 @@ describe("scrapeUrl", () => {
 
     expect(result).toBeNull();
   });
+
+  it("decodes HTML entities", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve("<p>Bags &amp; wallets, price &lt; $300</p>"),
+    });
+
+    const result = await scrapeUrl("https://example.com");
+
+    expect(result).toContain("Bags & wallets");
+    expect(result).toContain("price < $300");
+  });
+
+  it("truncates output to 5000 chars", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve("<p>" + "a".repeat(6000) + "</p>"),
+    });
+
+    const result = await scrapeUrl("https://example.com");
+
+    expect(result).not.toBeNull();
+    expect(result!.length).toBeLessThanOrEqual(5000);
+  });
 });

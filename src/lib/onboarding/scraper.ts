@@ -3,7 +3,11 @@
 /**
  * Fetches a URL and extracts clean text content by stripping HTML tags,
  * scripts, styles, and navigation elements.
- * Returns null if the fetch fails or the page can't be processed.
+ *
+ * Precondition: `url` must be a valid absolute URL (http/https). Malformed
+ * URLs are silently treated as failures and return null.
+ *
+ * Returns null if the fetch fails, times out, or returns a non-OK status.
  */
 export async function scrapeUrl(url: string): Promise<string | null> {
   try {

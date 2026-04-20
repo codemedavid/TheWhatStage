@@ -69,4 +69,22 @@ describe("buildUrlArticlePrompt", () => {
     expect(userMessage).toContain("50 products");
     expect(userMessage).toContain("LeatherCo");
   });
+
+  it("truncates scraped content to 3000 chars", () => {
+    const longContent = "x".repeat(5000);
+    const { userMessage } = buildUrlArticlePrompt(ctx, longContent);
+    // The user message should not contain more than 3000 x's in a row
+    expect(userMessage).not.toMatch(/x{3001}/);
+  });
+});
+
+describe("contextSummary behavior", () => {
+  it("omits differentiator line when empty", () => {
+    const ctxNoUsp: BusinessContext = {
+      ...ctx,
+      differentiator: "",
+    };
+    const { userMessage } = buildCampaignPrompt(ctxNoUsp);
+    expect(userMessage).not.toContain("Differentiator:");
+  });
 });
