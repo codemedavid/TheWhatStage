@@ -24,6 +24,7 @@ export async function POST() {
     .select("role")
     .eq("tenant_id", tenantId)
     .eq("user_id", user.id)
+    .eq("role", "owner")
     .single();
 
   if (!membership) {
