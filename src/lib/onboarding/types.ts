@@ -1,27 +1,32 @@
+import type { MainAction, PreviewData } from "@/lib/onboarding/generation-types";
+
 export type OnboardingStep =
   | "profile"
   | "industry"
   | "goal"
-  | "bot-setup"
-  | "actions"
-  | "facebook";
+  | "business-info"
+  | "website"
+  | "generation"
+  | "preview";
 
 export const STEP_ORDER: OnboardingStep[] = [
   "profile",
   "industry",
   "goal",
-  "bot-setup",
-  "actions",
-  "facebook",
+  "business-info",
+  "website",
+  "generation",
+  "preview",
 ];
 
 export const STEP_LABELS: Record<OnboardingStep, string> = {
   profile: "Profile",
   industry: "Industry",
   goal: "Goal",
-  "bot-setup": "Bot Setup",
-  actions: "Actions",
-  facebook: "Connect",
+  "business-info": "Business Info",
+  website: "Website",
+  generation: "Setup",
+  preview: "Preview",
 };
 
 export type BotTone = "friendly" | "professional" | "casual";
@@ -56,33 +61,27 @@ export interface OnboardingState {
   // Step 3: Goal
   botGoal: BotGoal | "";
 
-  // Step 4: Bot Setup
-  botTone: BotTone;
-  botRules: string[];
-  customInstruction: string;
+  // Step 4: Business Info
+  businessDescription: string;
+  mainAction: MainAction | "";
+  differentiator: string;
+  qualificationCriteria: string;
 
-  // Step 5: Actions
-  selectedActionTypes: ActionPageType[];
+  // Step 5: Website
+  websiteUrl: string;
 
-  // Step 6: Facebook
-  fbConnected: boolean;
+  // Step 6: Generation
+  generationId: string;
+
+  // Step 7: Preview
+  previewData: PreviewData | null;
 }
 
 export type OnboardingAction =
   | { type: "SET_FIELD"; field: keyof OnboardingState; value: unknown }
   | { type: "NEXT_STEP" }
   | { type: "PREV_STEP" }
-  | { type: "GO_TO_STEP"; step: OnboardingStep }
-  | {
-      type: "APPLY_DEFAULTS";
-      defaults: {
-        botTone: BotTone;
-        botRules: string[];
-        selectedActionTypes: ActionPageType[];
-      };
-    }
-  | { type: "TOGGLE_RULE"; rule: string }
-  | { type: "TOGGLE_ACTION_TYPE"; actionType: ActionPageType };
+  | { type: "GO_TO_STEP"; step: OnboardingStep };
 
 export const INITIAL_STATE: OnboardingState = {
   currentStep: "profile",
@@ -93,9 +92,11 @@ export const INITIAL_STATE: OnboardingState = {
   slug: "",
   industry: "",
   botGoal: "",
-  botTone: "friendly",
-  botRules: [],
-  customInstruction: "",
-  selectedActionTypes: [],
-  fbConnected: false,
+  businessDescription: "",
+  mainAction: "",
+  differentiator: "",
+  qualificationCriteria: "",
+  websiteUrl: "",
+  generationId: "",
+  previewData: null,
 };
