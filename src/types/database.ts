@@ -28,6 +28,12 @@ export interface Database {
         fb_verify_token: string | null;
         max_images_per_response: number;
         handoff_timeout_hours: number | null;
+        business_description: string | null;
+        main_action: string | null;
+        differentiator: string | null;
+        qualification_criteria: string | null;
+        website_url: string | null;
+        onboarding_completed: boolean;
         created_at: string;
       }>;
       tenant_members: TableRow<{
@@ -292,6 +298,18 @@ export interface Database {
         started_at: string;
         finished_at: string | null;
         log: Json;
+      }>;
+      onboarding_generations: TableRow<{
+        id: string;
+        user_id: string;
+        tenant_id: string | null;
+        input: Json;
+        status: "running" | "completed" | "failed";
+        checkpoint: "context" | "campaign" | "parallel" | "embeddings" | "persisted" | null;
+        results: Json;
+        error: string | null;
+        created_at: string;
+        updated_at: string;
       }>;
     };
     Views: Record<string, never>;
