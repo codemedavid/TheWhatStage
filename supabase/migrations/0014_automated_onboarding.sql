@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS onboarding_generations (
   input jsonb NOT NULL,
   status text NOT NULL DEFAULT 'running'
     CHECK (status IN ('running', 'completed', 'failed')),
+  -- Checkpoint sequence (ordered): context → campaign → parallel → embeddings → persisted
+  -- On retry, resume from the last completed checkpoint
   checkpoint text
     CHECK (checkpoint IN ('context', 'campaign', 'parallel', 'embeddings', 'persisted')),
   results jsonb NOT NULL DEFAULT '{}',
@@ -29,6 +31,8 @@ CREATE TABLE IF NOT EXISTS onboarding_generations (
 CREATE INDEX idx_onboarding_generations_user ON onboarding_generations(user_id);
 CREATE INDEX idx_onboarding_generations_status ON onboarding_generations(status)
   WHERE status = 'running';
+CREATE INDEX idx_onboarding_generations_tenant ON onboarding_generations(tenant_id)
+  WHERE tenant_id IS NOT NULL;
 
 -- RLS: users can only see their own generations
 ALTER TABLE onboarding_generations ENABLE ROW LEVEL SECURITY;
@@ -41,7 +45,12 @@ CREATE POLICY "Users can insert own generations"
   ON onboarding_generations FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Users can update own generations"
+  ON onboarding_generations FOR UPDATE
+  USING (auth.uid() = user_id);
+
 -- Service role can do everything (for the orchestrator)
 CREATE POLICY "Service role full access"
   ON onboarding_generations FOR ALL
-  USING (auth.role() = 'service_role');
+  USING (auth.jwt() ->> 'role' = 'service_role')
+  WITH CHECK (auth.jwt() ->> 'role' = 'service_role');
