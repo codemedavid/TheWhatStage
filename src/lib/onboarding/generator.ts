@@ -56,7 +56,7 @@ interface ResumeState {
   results: GenerationResults;
 }
 
-type ProgressCallback = (step: Checkpoint) => void;
+type ProgressCallback = (step: Checkpoint, currentResults: GenerationResults) => void;
 
 const CHECKPOINT_ORDER: Checkpoint[] = ["context", "campaign", "parallel", "embeddings", "persisted"];
 
@@ -76,7 +76,7 @@ export async function runGenerationPipeline(
   // Step 1: Build context
   if (!shouldSkip(lastCheckpoint, "context")) {
     results.context = buildContext(input);
-    onProgress("context");
+    onProgress("context", results);
   }
   const ctx = results.context!;
 
@@ -85,7 +85,7 @@ export async function runGenerationPipeline(
     const { campaign, phaseOutlines } = await generateCampaign(ctx);
     results.campaign = campaign;
     results.phaseOutlines = phaseOutlines;
-    onProgress("campaign");
+    onProgress("campaign", results);
   }
 
   // Step 3: Parallel — prompts + knowledge
@@ -131,13 +131,13 @@ export async function runGenerationPipeline(
     }
 
     await Promise.all(parallelTasks);
-    onProgress("parallel");
+    onProgress("parallel", results);
   }
 
   // Step 4: Embed knowledge
   if (!shouldSkip(lastCheckpoint, "embeddings")) {
     results.embeddings = await embedKnowledge(results);
-    onProgress("embeddings");
+    onProgress("embeddings", results);
   }
 
   return results;

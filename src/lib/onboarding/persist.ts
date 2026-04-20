@@ -2,6 +2,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GenerationInput, GenerationResults } from "./generation-types";
 
+// Note: This persist sequence is not wrapped in a DB transaction (Supabase JS client
+// does not support client-side transactions). If a step fails mid-sequence, partial
+// data may exist (tenant created but no campaign, etc.). The checkpoint retry mechanism
+// in onboarding_generations handles recovery at the pipeline level, not here.
 export async function persistResults(
   userId: string,
   input: GenerationInput,

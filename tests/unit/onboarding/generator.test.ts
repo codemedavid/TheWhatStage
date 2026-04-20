@@ -69,7 +69,7 @@ describe("runGenerationPipeline", () => {
     // Call 6: URL article (websiteUrl not provided in mockInput, so this won't be called)
 
     const steps: string[] = [];
-    const onProgress = (step: string) => steps.push(step);
+    const onProgress = (step: string, _results: unknown) => steps.push(step);
 
     const result = await runGenerationPipeline(mockInput, null, onProgress);
 
@@ -116,7 +116,7 @@ describe("runGenerationPipeline", () => {
     const result = await runGenerationPipeline(
       mockInput,
       { checkpoint: "campaign", results: existingResults },
-      (step) => steps.push(step)
+      (step, _r) => steps.push(step)
     );
 
     // Should NOT include context or campaign steps

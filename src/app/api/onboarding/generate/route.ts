@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   }
   const input: GenerationInput = {
     ...parsed.data,
-    differentiator: parsed.data.differentiator ?? "",
+    differentiator: parsed.data.differentiator,
     websiteUrl: parsed.data.websiteUrl || undefined,
   };
 
@@ -51,6 +51,15 @@ export async function POST(req: Request) {
   }
 
   const service = createServiceClient();
+
+  // Check slug uniqueness
+  const { count } = await service
+    .from("tenants")
+    .select("id", { count: "exact", head: true })
+    .eq("slug", input.tenantSlug);
+  if (count && count > 0) {
+    return Response.json({ error: "Slug is already taken" }, { status: 409 });
+  }
 
   // 4. Create generation record
   const { data: gen, error: genErr } = await service
@@ -72,30 +81,18 @@ export async function POST(req: Request) {
       }
 
       try {
-        const results = await runGenerationPipeline(input, null, (step) => {
+        const results = await runGenerationPipeline(input, null, (step, currentResults) => {
           // Best-effort checkpoint update in DB (not awaited — generator is synchronous callback)
           void service
             .from("onboarding_generations")
-            .update({ checkpoint: step, updated_at: new Date().toISOString() })
+            .update({ checkpoint: step, results: currentResults as unknown as Json, updated_at: new Date().toISOString() })
             .eq("id", gen.id);
           send({ step, status: "done" });
         });
 
         // Persist to database
-        const tenantId = await persistResults(user.id, input, results, gen.id, service);
-        void tenantId; // used inside persistResults; returned for future use
+        await persistResults(user.id, input, results, gen.id, service);
         send({ step: "persisted", status: "done" });
-
-        // Build preview
-        const preview: PreviewData = {
-          campaignName: results.campaign!.name,
-          campaignGoal: results.campaign!.goal,
-          phaseNames: results.phases!.map((p) => p.name),
-          faqCount: results.faqs?.length ?? 0,
-          articleCount: (results.generalArticle ? 1 : 0) + (results.urlArticle ? 1 : 0),
-          sampleGreeting: results.phases![0]?.system_prompt.slice(0, 200) ?? "",
-        };
-        send({ step: "complete", status: "done", data: { preview } });
 
         // Mark generation complete
         await service
@@ -107,6 +104,17 @@ export async function POST(req: Request) {
             updated_at: new Date().toISOString(),
           })
           .eq("id", gen.id);
+
+        // Build preview and send complete
+        const preview: PreviewData = {
+          campaignName: results.campaign!.name,
+          campaignGoal: results.campaign!.goal,
+          phaseNames: results.phases!.map((p) => p.name),
+          faqCount: results.faqs?.length ?? 0,
+          articleCount: (results.generalArticle ? 1 : 0) + (results.urlArticle ? 1 : 0),
+          sampleGreeting: results.phases![0]?.system_prompt.slice(0, 200) ?? "",
+        };
+        send({ step: "complete", status: "done", data: { preview } });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         await service
