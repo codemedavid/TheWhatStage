@@ -26,14 +26,6 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "review", label: "Review", icon: ClipboardCheck },
 ];
 
-const MOCK_MESSAGES: Message[] = [
-  {
-    id: "1",
-    direction: "out",
-    text: "Hi! Welcome to our page. How can I help you today?",
-    createdAt: new Date(Date.now() - 120000).toISOString(),
-  },
-];
 
 function KnowledgeTab() {
   return <KnowledgePanel />;
@@ -307,18 +299,131 @@ type ReasoningChunk = {
   source: string;
 };
 
+type PhaseInfo = {
+  id: string;
+  name: string;
+  index: number;
+  total: number;
+  messageCount: number;
+  maxMessages: number;
+};
+
 type Reasoning = {
   chunks: ReasoningChunk[];
   confidence: number;
   queryTarget: string;
   retrievalPass: number;
+  phaseAction: string;
+};
+
+type Campaign = {
+  id: string;
+  name: string;
+};
+
+type PhaseOption = {
+  id: string;
+  name: string;
+  order_index: number;
 };
 
 function TestChatTab() {
-  const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
   const [reasoning, setReasoning] = useState<Reasoning | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sessionId] = useState(() => `test-${Date.now()}`);
+
+  // Campaign & phase state
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [phases, setPhases] = useState<PhaseOption[]>([]);
+  const [currentPhase, setCurrentPhase] = useState<PhaseInfo | null>(null);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+
+  // Load campaigns on mount
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/api/campaigns");
+        if (res.ok) {
+          const data = await res.json();
+          setCampaigns(data.campaigns ?? []);
+        }
+      } finally {
+        setLoadingCampaigns(false);
+      }
+    }
+    load();
+  }, []);
+
+  // Load phases when campaign changes
+  useEffect(() => {
+    async function loadPhases() {
+      const url = selectedCampaignId
+        ? `/api/campaigns/${selectedCampaignId}/phases`
+        : "/api/bot/phases";
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setPhases(data.phases ?? []);
+      }
+    }
+    loadPhases();
+  }, [selectedCampaignId]);
+
+  const handleReset = async () => {
+    await fetch("/api/bot/test-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "reset", sessionId, reset: true }),
+    });
+    setMessages([]);
+    setReasoning(null);
+    setCurrentPhase(null);
+    setError(null);
+  };
+
+  const handleCampaignChange = async (campaignId: string | null) => {
+    setSelectedCampaignId(campaignId);
+    await handleReset();
+  };
+
+  const handleJumpToPhase = async (phaseId: string) => {
+    try {
+      const res = await fetch("/api/bot/test-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "jump",
+          sessionId,
+          campaignId: selectedCampaignId,
+          jumpToPhaseId: phaseId,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentPhase({
+          id: data.currentPhase.id,
+          name: data.currentPhase.name,
+          index: data.phaseIndex,
+          total: data.totalPhases,
+          messageCount: 0,
+          maxMessages: data.currentPhase.maxMessages ?? 3,
+        });
+        const jumpedPhase = phases.find((p) => p.id === phaseId);
+        const systemMsg: Message = {
+          id: `sys-${Date.now()}`,
+          direction: "out",
+          text: `--- Jumped to phase: ${jumpedPhase?.name ?? "Unknown"} ---`,
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, systemMsg]);
+      }
+    } catch {
+      setError("Failed to jump to phase");
+    }
+  };
 
   const handleSend = async (text: string) => {
     const userMsg: Message = {
@@ -335,7 +440,11 @@ function TestChatTab() {
       const res = await fetch("/api/bot/test-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({
+          message: text,
+          sessionId,
+          campaignId: selectedCampaignId,
+        }),
       });
 
       if (!res.ok) {
@@ -352,11 +461,29 @@ function TestChatTab() {
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, botMsg]);
+
+      // Update phase info
+      if (data.currentPhase) {
+        setCurrentPhase(data.currentPhase);
+      }
+
+      // Show phase advancement notification
+      if (data.phaseAdvanced) {
+        const advanceMsg: Message = {
+          id: `sys-advance-${Date.now()}`,
+          direction: "out",
+          text: `--- Advanced to phase: ${data.currentPhase.name} ---`,
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, advanceMsg]);
+      }
+
       setReasoning({
         chunks: data.chunks ?? [],
         confidence: data.confidence ?? 0,
         queryTarget: data.queryTarget ?? "general",
         retrievalPass: data.retrievalPass ?? 1,
+        phaseAction: data.phaseAction ?? "stay",
       });
     } catch {
       setError("Failed to reach the server. Check your connection.");
@@ -375,93 +502,155 @@ function TestChatTab() {
   const confidencePct = reasoning ? Math.round(reasoning.confidence * 100) : 0;
 
   return (
-    <div className="flex h-[500px] gap-4">
-      <Card className="flex-1 overflow-hidden">
-        <div className="flex h-full flex-col">
-          <div className="flex items-center gap-2 border-b border-[var(--ws-border)] px-4 py-2">
-            <Badge variant="warning">Test Mode</Badge>
-            {sending && (
-              <span className="flex items-center gap-1 text-xs text-[var(--ws-text-muted)]">
-                <span className="animate-pulse">●</span>
-                <span className="animate-pulse delay-75">●</span>
-                <span className="animate-pulse delay-150">●</span>
-              </span>
-            )}
-          </div>
-          {error && (
-            <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
-              {error}
-            </div>
-          )}
-          <div className="flex-1">
-            <MessageThread
-              header={{ leadName: "Test User", leadPic: null }}
-              messages={messages}
-              onSend={sending ? undefined : handleSend}
-            />
-          </div>
+    <div className="flex h-[500px] flex-col gap-4">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Campaign Selector */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-[var(--ws-text-muted)]">Campaign:</label>
+          <select
+            value={selectedCampaignId ?? "__default__"}
+            onChange={(e) => handleCampaignChange(e.target.value === "__default__" ? null : e.target.value)}
+            disabled={loadingCampaigns}
+            className="rounded-lg border border-[var(--ws-border)] bg-white px-3 py-1.5 text-sm text-[var(--ws-text-primary)] outline-none focus:border-[var(--ws-accent)]"
+          >
+            <option value="__default__">Default Bot Flow</option>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
         </div>
-      </Card>
 
-      <Card className="w-72 shrink-0 overflow-y-auto p-4">
-        <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--ws-text-muted)]">
-          AI Reasoning
-        </h3>
-
-        {!reasoning ? (
-          <p className="text-xs text-[var(--ws-text-muted)]">
-            Send a message to see which rules and knowledge chunks the AI uses to generate its response.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-xs text-[var(--ws-text-muted)]">Confidence</span>
-                <span className="text-xs font-medium text-[var(--ws-text-primary)]">{confidencePct}%</span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--ws-bg-secondary)]">
-                <div
-                  className={`h-full rounded-full transition-all ${confidenceColor}`}
-                  style={{ width: `${confidencePct}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              <Badge variant="muted">{reasoning.queryTarget}</Badge>
-              {reasoning.retrievalPass === 2 && (
-                <Badge variant="warning">Reformulated query</Badge>
-              )}
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-medium text-[var(--ws-text-muted)]">
-                Retrieved Knowledge ({reasoning.chunks.length})
-              </p>
-              {reasoning.chunks.length === 0 ? (
-                <p className="text-xs text-[var(--ws-text-muted)]">No chunks retrieved.</p>
-              ) : (
-                <div className="space-y-2">
-                  {reasoning.chunks.map((chunk, i) => (
-                    <div key={i} className="rounded-md border border-[var(--ws-border)] p-2">
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-xs text-[var(--ws-text-muted)]">{chunk.source}</span>
-                        <span className="text-xs font-medium text-[var(--ws-text-primary)]">
-                          {Math.round(chunk.similarity * 100)}%
-                        </span>
-                      </div>
-                      <p className="line-clamp-3 text-xs text-[var(--ws-text-secondary)]">
-                        {chunk.content.slice(0, 120)}
-                        {chunk.content.length > 120 ? "…" : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        {/* Phase Jump */}
+        {phases.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-[var(--ws-text-muted)]">Jump to:</label>
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) handleJumpToPhase(e.target.value); }}
+              className="rounded-lg border border-[var(--ws-border)] bg-white px-3 py-1.5 text-sm text-[var(--ws-text-primary)] outline-none focus:border-[var(--ws-accent)]"
+            >
+              <option value="">Select phase...</option>
+              {phases.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
           </div>
         )}
-      </Card>
+
+        {/* Phase Indicator */}
+        {currentPhase && (
+          <Badge variant="muted">
+            Phase {currentPhase.index + 1}/{currentPhase.total}: {currentPhase.name}
+            {" "}({currentPhase.messageCount}/{currentPhase.maxMessages} msgs)
+          </Badge>
+        )}
+
+        {/* Reset Button */}
+        <Button variant="ghost" onClick={handleReset} className="ml-auto">
+          Reset
+        </Button>
+      </div>
+
+      {/* Chat + Reasoning */}
+      <div className="flex flex-1 gap-4">
+        <Card className="flex-1 overflow-hidden">
+          <div className="flex h-full flex-col">
+            <div className="flex items-center gap-2 border-b border-[var(--ws-border)] px-4 py-2">
+              <Badge variant="warning">Test Mode</Badge>
+              {sending && (
+                <span className="flex items-center gap-1 text-xs text-[var(--ws-text-muted)]">
+                  <span className="animate-pulse">●</span>
+                  <span className="animate-pulse delay-75">●</span>
+                  <span className="animate-pulse delay-150">●</span>
+                </span>
+              )}
+            </div>
+            {error && (
+              <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
+                {error}
+              </div>
+            )}
+            <div className="flex-1">
+              <MessageThread
+                header={{ leadName: "Test User", leadPic: null }}
+                messages={messages}
+                onSend={sending ? undefined : handleSend}
+              />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="w-72 shrink-0 overflow-y-auto p-4">
+          <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--ws-text-muted)]">
+            AI Reasoning
+          </h3>
+
+          {!reasoning ? (
+            <p className="text-xs text-[var(--ws-text-muted)]">
+              Send a message to see which rules and knowledge chunks the AI uses to generate its response.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {/* Phase Action */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--ws-text-muted)]">Phase action:</span>
+                <Badge variant={reasoning.phaseAction === "advance" ? "success" : reasoning.phaseAction === "escalate" ? "warning" : "muted"}>
+                  {reasoning.phaseAction}
+                </Badge>
+              </div>
+
+              {/* Confidence */}
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-xs text-[var(--ws-text-muted)]">Confidence</span>
+                  <span className="text-xs font-medium text-[var(--ws-text-primary)]">{confidencePct}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--ws-bg-secondary)]">
+                  <div
+                    className={`h-full rounded-full transition-all ${confidenceColor}`}
+                    style={{ width: `${confidencePct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="muted">{reasoning.queryTarget}</Badge>
+                {reasoning.retrievalPass === 2 && (
+                  <Badge variant="warning">Reformulated query</Badge>
+                )}
+              </div>
+
+              {/* Retrieved Knowledge */}
+              <div>
+                <p className="mb-2 text-xs font-medium text-[var(--ws-text-muted)]">
+                  Retrieved Knowledge ({reasoning.chunks.length})
+                </p>
+                {reasoning.chunks.length === 0 ? (
+                  <p className="text-xs text-[var(--ws-text-muted)]">No chunks retrieved.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {reasoning.chunks.map((chunk, i) => (
+                      <div key={i} className="rounded-md border border-[var(--ws-border)] p-2">
+                        <div className="mb-1 flex items-center justify-between">
+                          <span className="text-xs text-[var(--ws-text-muted)]">{chunk.source}</span>
+                          <span className="text-xs font-medium text-[var(--ws-text-primary)]">
+                            {Math.round(chunk.similarity * 100)}%
+                          </span>
+                        </div>
+                        <p className="line-clamp-3 text-xs text-[var(--ws-text-secondary)]">
+                          {chunk.content.slice(0, 120)}
+                          {chunk.content.length > 120 ? "…" : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
