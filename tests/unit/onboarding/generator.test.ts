@@ -5,8 +5,8 @@ vi.mock("@/lib/ai/llm-client", () => ({
   generateResponse: vi.fn(),
 }));
 vi.mock("@/lib/ai/embedding", () => ({
-  embedText: vi.fn().mockResolvedValue(new Array(1024).fill(0.1)),
-  embedBatch: vi.fn().mockResolvedValue([new Array(1024).fill(0.1)]),
+  embedText: vi.fn().mockResolvedValue(new Array(1536).fill(0.1)),
+  embedBatch: vi.fn().mockResolvedValue([new Array(1536).fill(0.1)]),
 }));
 vi.mock("@/lib/onboarding/scraper", () => ({
   scrapeUrl: vi.fn().mockResolvedValue("Scraped website content here"),
@@ -15,6 +15,7 @@ vi.mock("@/lib/onboarding/scraper", () => ({
 import { runGenerationPipeline } from "@/lib/onboarding/generator";
 import { generateResponse } from "@/lib/ai/llm-client";
 import type { GenerationInput, GenerationResults } from "@/lib/onboarding/generation-types";
+
 
 const mockInput: GenerationInput = {
   businessType: "ecommerce",
@@ -121,5 +122,21 @@ describe("runGenerationPipeline", () => {
     // Should NOT include context or campaign steps
     expect(steps).toEqual(["parallel", "embeddings"]);
     expect(result.phases).toHaveLength(2);
+  });
+
+  it("generates URL article when websiteUrl is provided", async () => {
+    const mockGenerate = vi.mocked(generateResponse);
+    mockGenerate.mockResolvedValueOnce({ content: mockCampaignResponse, finishReason: "stop" });
+    mockGenerate.mockResolvedValueOnce({ content: "Phase 1 prompt", finishReason: "stop" });
+    mockGenerate.mockResolvedValueOnce({ content: "Phase 2 prompt", finishReason: "stop" });
+    mockGenerate.mockResolvedValueOnce({ content: mockFaqResponse, finishReason: "stop" });
+    mockGenerate.mockResolvedValueOnce({ content: "General article text", finishReason: "stop" });
+    mockGenerate.mockResolvedValueOnce({ content: "URL article text", finishReason: "stop" });
+
+    const inputWithUrl: GenerationInput = { ...mockInput, websiteUrl: "https://leatherco.example.com" };
+    const result = await runGenerationPipeline(inputWithUrl, null, () => {});
+
+    expect(result.urlArticle).toBe("URL article text");
+    expect(result.scrapedContent).toBe("Scraped website content here");
   });
 });

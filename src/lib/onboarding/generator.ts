@@ -56,7 +56,7 @@ interface ResumeState {
   results: GenerationResults;
 }
 
-type ProgressCallback = (step: string) => void;
+type ProgressCallback = (step: Checkpoint) => void;
 
 const CHECKPOINT_ORDER: Checkpoint[] = ["context", "campaign", "parallel", "embeddings", "persisted"];
 
@@ -90,6 +90,13 @@ export async function runGenerationPipeline(
 
   // Step 3: Parallel — prompts + knowledge
   if (!shouldSkip(lastCheckpoint, "parallel")) {
+    // Guard: phaseOutlines must exist before parallel step
+    if (!results.phaseOutlines) {
+      throw new Error(
+        "Checkpoint 'campaign' reached but phaseOutlines is missing from resume state"
+      );
+    }
+
     const parallelTasks: Promise<void>[] = [];
 
     // 3a: Phase prompts
@@ -156,7 +163,7 @@ async function generatePhasePrompts(
   const prompts = outlines.map(async (outline) => {
     const { systemPrompt, userMessage } = buildPhasePromptPrompt(ctx, outline);
     const response = await generateResponse(systemPrompt, userMessage, {
-      maxTokens: 512,
+      maxTokens: 768,
     });
     return { ...outline, system_prompt: response.content };
   });
@@ -203,13 +210,17 @@ async function embedKnowledge(
   const faqTexts = (results.faqs ?? []).map(
     (f) => `Q: ${f.question}\nA: ${f.answer}`
   );
-  const faqEmbeddings = faqTexts.length > 0 ? await embedBatch(faqTexts) : [];
-  const generalArticleEmbedding = results.generalArticle
-    ? await embedText(results.generalArticle)
-    : [];
-  const urlArticleEmbedding = results.urlArticle
-    ? await embedText(results.urlArticle)
-    : undefined;
+
+  const [faqEmbeddings, generalArticleEmbedding, urlArticleEmbedding] =
+    await Promise.all([
+      faqTexts.length > 0 ? embedBatch(faqTexts) : Promise.resolve([]),
+      results.generalArticle
+        ? embedText(results.generalArticle)
+        : Promise.resolve([]),
+      results.urlArticle
+        ? embedText(results.urlArticle)
+        : Promise.resolve(undefined),
+    ]);
 
   return { faqEmbeddings, generalArticleEmbedding, urlArticleEmbedding };
 }
