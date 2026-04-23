@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { resolveSession } from "@/lib/auth/session";
 import { seedPhaseTemplates } from "@/lib/ai/phase-templates";
 import { z } from "zod";
 
@@ -8,20 +8,9 @@ const seedSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const tenantId = user.app_metadata?.tenant_id as string | undefined;
-  if (!tenantId) {
-    return NextResponse.json({ error: "No tenant associated" }, { status: 403 });
-  }
+  const session = await resolveSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { tenantId } = session;
 
   const body = await request.json();
   const parsed = seedSchema.safeParse(body);

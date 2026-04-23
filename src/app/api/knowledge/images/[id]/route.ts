@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { resolveSession } from "@/lib/auth/session";
 import { deleteImage as deleteCloudinaryImage } from "@/lib/cloudinary";
 import { embedText } from "@/lib/ai/embedding";
 import { z } from "zod";
@@ -19,20 +19,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   const { id } = await context.params;
 
   // 1. Authenticate
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const tenantId = user.app_metadata?.tenant_id as string | undefined;
-  if (!tenantId) {
-    return NextResponse.json({ error: "No tenant associated" }, { status: 403 });
-  }
+  const session = await resolveSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { tenantId } = session;
 
   // 2. Parse and validate body
   const body = await request.json();
@@ -80,20 +69,9 @@ export async function DELETE(request: Request, context: RouteContext) {
   const { id } = await context.params;
 
   // 1. Authenticate
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const tenantId = user.app_metadata?.tenant_id as string | undefined;
-  if (!tenantId) {
-    return NextResponse.json({ error: "No tenant associated" }, { status: 403 });
-  }
+  const session = await resolveSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { tenantId } = session;
 
   // 2. Fetch the image to get the Cloudinary URL for cleanup
   const service = createServiceClient();

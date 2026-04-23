@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { resolveSession } from "@/lib/auth/session";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -15,32 +15,16 @@ const createSchema = z.object({
   image_attachment_ids: z.array(z.string().uuid()).optional(),
 });
 
-async function authenticate() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) return { error: "Unauthorized", status: 401 };
-
-  const tenantId = user.app_metadata?.tenant_id as string | undefined;
-  if (!tenantId) return { error: "No tenant associated", status: 403 };
-
-  return { tenantId };
-}
-
 export async function GET() {
-  const auth = await authenticate();
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  const session = await resolveSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { tenantId } = session;
 
   const service = createServiceClient();
   const { data: phases, error } = await service
     .from("bot_flow_phases")
     .select("*")
-    .eq("tenant_id", auth.tenantId)
+    .eq("tenant_id", tenantId)
     .order("order_index", { ascending: true });
 
   if (error) {
@@ -51,10 +35,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await authenticate();
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  const session = await resolveSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { tenantId } = session;
 
   const body = await request.json();
   const parsed = createSchema.safeParse(body);
@@ -70,7 +53,7 @@ export async function POST(request: Request) {
   const { data: phase, error } = await service
     .from("bot_flow_phases")
     .insert({
-      tenant_id: auth.tenantId,
+      tenant_id: tenantId,
       name: parsed.data.name,
       order_index: parsed.data.order_index,
       max_messages: parsed.data.max_messages,

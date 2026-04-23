@@ -181,6 +181,11 @@
   },
   "active": "39d0dfc4ca7f18b0",
   "lastOpenFiles": [
+    "Components/Test Chat Route.md",
+    "Components/LLM Client.md",
+    "Flows/Inbox Conversations Flow.md",
+    "Index/Feature Roadmap.md",
+    "Entities/leads.md",
     "Components/ActionsPage.md",
     "Components/ActionSlugPage.md",
     "Entities/tenants.md",
@@ -188,11 +193,9 @@
     "Entities/Slug Utilities.md",
     "Flows/Signup to Dashboard Flow.md",
     "Features/Tenant Account Setup.md",
-    "Entities/leads.md",
     "Features/Webhook Retry Queue.md",
     "Index/Component Registry.md",
     "Components/MarketingLayout.md",
-    "Index/Feature Roadmap.md",
     "Index/Database Schema Map.md",
     "Entities/conversations.md",
     "Index/System Overview.md",
@@ -203,9 +206,6 @@
     "Flows/Action Page Submission Flow.md",
     "Flows/Workflow Execution Flow.md",
     "Flows/Bot Conversation Flow.md",
-    "Flows/Tenant Onboarding Flow.md",
-    "Flows/Messenger Webhook Flow.md",
-    "Flows/Product Purchase Flow.md",
-    "Flows/Appointment Booking Flow.md"
+    "Flows/Tenant Onboarding Flow.md"
   ]
 }

@@ -34,15 +34,12 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    // User already exists
+    // User already exists — return generic success to prevent email enumeration
     if (error.message?.includes("already been registered")) {
-      return NextResponse.json(
-        { error: "An account with this email already exists" },
-        { status: 409 }
-      );
+      return NextResponse.json({ ok: true });
     }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ userId: data.user.id }, { status: 201 });
+  return NextResponse.json({ ok: true }, { status: 201 });
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { resolveSession } from "@/lib/auth/session";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -17,26 +17,10 @@ const updateSchema = z.object({
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-async function authenticate() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) return { error: "Unauthorized", status: 401 };
-
-  const tenantId = user.app_metadata?.tenant_id as string | undefined;
-  if (!tenantId) return { error: "No tenant associated", status: 403 };
-
-  return { tenantId };
-}
-
 export async function PATCH(request: Request, context: RouteContext) {
-  const auth = await authenticate();
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  const session = await resolveSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { tenantId } = session;
 
   const { id } = await context.params;
 
@@ -55,7 +39,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     .from("bot_flow_phases")
     .update(parsed.data)
     .eq("id", id)
-    .eq("tenant_id", auth.tenantId)
+    .eq("tenant_id", tenantId)
     .select("*")
     .single();
 
@@ -67,10 +51,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const auth = await authenticate();
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  const session = await resolveSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { tenantId } = session;
 
   const { id } = await context.params;
 
@@ -79,7 +62,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     .from("bot_flow_phases")
     .delete()
     .eq("id", id)
-    .eq("tenant_id", auth.tenantId);
+    .eq("tenant_id", tenantId);
 
   if (error) {
     return NextResponse.json({ error: "Failed to delete phase" }, { status: 500 });

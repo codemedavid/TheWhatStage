@@ -1,6 +1,7 @@
 ---
 name: test-feature
-description: Use when adding a new feature, API route, component, or utility — decomposes into separately testable units, scaffolds tests, and runs them automatically without user intervention
+description: Use when adding a new feature, API route, component, or utility — decomposes into separately testable units, scaffolds tests, runs them automatically, then launches agent-browser to interactively dogfood the feature in a real browser until it is fully verified
+allowed-tools: Bash(agent-browser:*), Bash(npx agent-browser:*)
 ---
 
 # Test Feature
@@ -131,8 +132,9 @@ npx playwright test tests/e2e/path-to-test.spec.ts
 - **Environment variables**: Read directly from `.env.local` — never ask the user for values
 - **Unit tests**: Always run immediately, no dependencies needed
 - **Integration tests**: Always run immediately — use real Supabase (credentials from `.env.local`)
-- **E2E tests**: Check if dev server is running first; if not, skip E2E and note it in the report
+- **E2E tests**: Check if dev server is running first; if not, start it
 - **On failure**: Fix the test or implementation, then re-run. Iterate until green. Only report back to the user after exhausting reasonable fixes (3 attempts max per test).
+- **After all automated tests pass**: Proceed to Step 6 (Interactive Exploratory Testing) — do NOT skip this step
 
 ## Step 5: Report Results
 
@@ -164,6 +166,81 @@ If there are unresolvable failures, report them clearly:
 ### ❌ Failures (need user input)
 - `tests/integration/api/leads.test.ts` — Supabase connection refused (is the DB running?)
 ```
+
+## Step 6: Interactive Exploratory Testing (Dogfood)
+
+After all automated tests pass, launch a live browser session to interact with the feature as a real user would. **Do not skip this step.** The goal is to use the feature end-to-end in the running app until you are confident it works correctly.
+
+### Prerequisites
+
+- Dev server must be running (`npm run dev`). If not running, start it.
+- `agent-browser` must be installed. If not: `npm i -g agent-browser && agent-browser install`
+- Load the dogfood skill: `agent-browser skills get dogfood`
+
+### Workflow
+
+1. **Start a session and navigate to the app:**
+
+```bash
+agent-browser --session test-feature open http://localhost:3000
+agent-browser --session test-feature wait --load networkidle
+```
+
+2. **Sign up / Sign in if needed:**
+   - If the feature requires authentication, go through the full sign-up or login flow in the browser.
+   - If credentials or OTP codes are needed, **ask the user** — do not guess.
+   - Save auth state after login: `agent-browser --session test-feature state save ./dogfood-output/auth-state.json`
+
+3. **Navigate to the feature:**
+   - Use the app's navigation like a real user — click through menus, sidebars, links.
+   - Take snapshots at each page to orient: `agent-browser --session test-feature snapshot -i`
+   - Take screenshots for evidence: `agent-browser --session test-feature screenshot --annotate ./dogfood-output/screenshots/{step}.png`
+
+4. **Exercise every part of the feature:**
+   - Fill forms with realistic data
+   - Click every button, toggle, dropdown
+   - Test happy paths AND edge cases (empty inputs, long text, special characters)
+   - Check error states — submit invalid data, trigger validation
+   - Test the full create → read → update → delete cycle if applicable
+   - Check the browser console for errors: `agent-browser --session test-feature errors`
+
+5. **Do not stop until the feature is fully tested:**
+   - If something breaks, document it with a screenshot, fix the code, and re-test
+   - If you need user input (file uploads, specific test data, credentials), **ask immediately** — do not skip the test
+   - Keep iterating: fix → re-test → fix → re-test until everything works
+   - Aim for at least 5-10 distinct interactions with the feature
+
+6. **Document findings:**
+
+```
+### Exploratory Test Results
+
+| Action | Result | Evidence |
+|--------|--------|----------|
+| Signed up with test account | Success | screenshots/signup.png |
+| Navigated to [Feature] | Success | screenshots/feature-nav.png |
+| Submitted form with valid data | Success | screenshots/form-submit.png |
+| Submitted form with empty fields | Validation shown | screenshots/form-empty.png |
+| ... | ... | ... |
+
+#### Issues Found
+- ISSUE-001: [Description] — see screenshots/issue-001.png
+  - Fixed in [file:line] — re-tested, now passing
+```
+
+7. **Close the session:**
+
+```bash
+agent-browser --session test-feature close
+```
+
+### Key Rules
+
+- **Never stop early** — the feature is not tested until you have interacted with every user-facing aspect
+- **Ask for inputs when needed** — if the feature needs files, specific data, or credentials, ask the user immediately rather than skipping
+- **Fix and re-test** — if you find a bug during exploratory testing, fix the implementation, then re-test in the browser to confirm the fix
+- **Test like a real user** — don't just verify it renders; actually use it the way a customer would
+- **Console errors count** — check `errors` and `console` commands periodically; JS errors are bugs even if the UI looks fine
 
 ## Quick Reference
 

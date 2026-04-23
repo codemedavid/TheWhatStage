@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,300;1,9..144,600&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -67,6 +68,172 @@ body {
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-10px); }
+}
+
+/* Auth page animations */
+@keyframes auth-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes auth-bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Staggered page-load reveal */
+.auth-reveal {
+  opacity: 0;
+  animation: auth-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.auth-reveal-1 { animation-delay: 0.05s; }
+.auth-reveal-2 { animation-delay: 0.13s; }
+.auth-reveal-3 { animation-delay: 0.21s; }
+.auth-reveal-4 { animation-delay: 0.29s; }
+.auth-reveal-5 { animation-delay: 0.37s; }
+.auth-reveal-6 { animation-delay: 0.45s; }
+
+/* Pipeline bars animate in */
+.auth-bar-inner {
+  transform-origin: left;
+  animation: auth-bar-grow 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.auth-bar-1 { animation-delay: 0.5s; }
+.auth-bar-2 { animation-delay: 0.65s; }
+.auth-bar-3 { animation-delay: 0.8s; }
+.auth-bar-4 { animation-delay: 0.95s; }
+
+.auth-spinner {
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  animation: auth-spin 0.65s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* Auth page layout — responsive grid */
+.auth-page {
+  min-height: 100vh;
+  background: #F7F8F5;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 40px;
+  border-bottom: 1px solid #EAECE6;
+  background: #fff;
+}
+
+.auth-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 56px 40px;
+  gap: 64px;
+  align-items: start;
+}
+
+/* On mobile: single column, left panel hidden */
+@media (max-width: 768px) {
+  .auth-header {
+    padding: 16px 20px;
+  }
+  .auth-layout {
+    grid-template-columns: 1fr;
+    padding: 32px 20px 48px;
+    gap: 0;
+  }
+  .auth-left {
+    display: none;
+  }
+}
+
+/* Light-theme auth inputs */
+.auth-input {
+  width: 100%;
+  background: #fff;
+  border: 1px solid #D1D5DB;
+  border-radius: 7px;
+  padding: 12px 14px;
+  font-size: 16px; /* prevents iOS auto-zoom on focus */
+  color: #111827;
+  box-sizing: border-box;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.auth-input::placeholder { color: #9CA3AF; }
+.auth-input:focus {
+  outline: none;
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+}
+
+/* Primary CTA — deep teal, 44px min touch target */
+.auth-btn-primary {
+  width: 100%;
+  background: #061A1C;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: none;
+  border-radius: 7px;
+  padding: 13px;
+  min-height: 44px;
+  cursor: pointer;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+.auth-btn-primary:hover:not(:disabled) {
+  background: #0D2A2D;
+  box-shadow: 0 4px 14px rgba(6, 26, 28, 0.2);
+}
+.auth-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Secondary outline button / link */
+.auth-btn-outline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border-radius: 7px;
+  padding: 12px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  border: 1px solid #E5E7EB;
+  background: transparent;
+  text-align: center;
+  text-decoration: none;
+  transition: background 0.18s ease, border-color 0.18s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.auth-btn-outline:hover {
+  background: #F9FAFB;
+  border-color: #D1D5DB;
 }
 
 /* Scroll reveal base state */

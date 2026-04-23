@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Target,
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -44,7 +45,14 @@ function isActive(pathname: string, href: string, exact?: boolean) {
 export default function DashboardNav({ tenantSlug }: { tenantSlug: string }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const escalationCount = useEscalationCount();
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
 
   const navContent = (
     <>
@@ -93,7 +101,7 @@ export default function DashboardNav({ tenantSlug }: { tenantSlug: string }) {
         })}
       </nav>
 
-      <div className="border-t border-[var(--ws-border)] px-2 py-3">
+      <div className="border-t border-[var(--ws-border)] px-2 py-3 flex flex-col gap-0.5">
         <Link
           href="/app/settings"
           onClick={() => setMobileOpen(false)}
@@ -107,6 +115,14 @@ export default function DashboardNav({ tenantSlug }: { tenantSlug: string }) {
           <Settings className="h-4 w-4" />
           Settings
         </Link>
+        <button
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--ws-text-secondary)] hover:bg-[var(--ws-page)] transition-colors disabled:opacity-50 w-full text-left"
+        >
+          <LogOut className="h-4 w-4" />
+          {loggingOut ? "Signing out…" : "Sign out"}
+        </button>
       </div>
     </>
   );

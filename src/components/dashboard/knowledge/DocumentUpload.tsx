@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, RefreshCw } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -24,7 +24,10 @@ export default function DocumentUpload({ docs, onUploadComplete }: DocumentUploa
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const retryInputRef = useRef<HTMLInputElement>(null);
+  const retryDocRef = useRef<KnowledgeDoc | null>(null);
 
   const documentDocs = docs.filter((d) => ["pdf", "docx", "xlsx"].includes(d.type));
 
@@ -63,6 +66,51 @@ export default function DocumentUpload({ docs, onUploadComplete }: DocumentUploa
         setError("Upload failed. Please try again.");
       } finally {
         setUploading(false);
+      }
+    },
+    [onUploadComplete]
+  );
+
+  const handleRetryFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const doc = retryDocRef.current;
+      if (!e.target.files || !doc) return;
+
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const docType = ALLOWED_EXTENSIONS[file.type];
+      if (!docType) {
+        setError("Unsupported file type.");
+        return;
+      }
+
+      setRetryingId(doc.id);
+      setError(null);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", docType);
+
+        const res = await fetch(`/api/knowledge/retry/${doc.id}`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const body = await res.json();
+          setError(body.error ?? "Retry failed");
+          return;
+        }
+
+        onUploadComplete();
+      } catch {
+        setError("Retry failed. Please try again.");
+      } finally {
+        setRetryingId(null);
+        retryDocRef.current = null;
+        // Reset so the same file can be selected again
+        e.target.value = "";
       }
     },
     [onUploadComplete]
@@ -125,6 +173,14 @@ export default function DocumentUpload({ docs, onUploadComplete }: DocumentUploa
         />
       </div>
 
+      <input
+        ref={retryInputRef}
+        type="file"
+        className="hidden"
+        accept=".pdf,.docx,.xlsx"
+        onChange={handleRetryFile}
+      />
+
       {error && (
         <p className="mb-4 text-sm text-[var(--ws-danger)]">{error}</p>
       )}
@@ -152,14 +208,32 @@ export default function DocumentUpload({ docs, onUploadComplete }: DocumentUploa
                 </div>
                 <Badge variant="muted">{doc.type.toUpperCase()}</Badge>
               </div>
-              <ProcessingStatus
-                status={doc.status}
-                errorMessage={
-                  doc.status === "error"
-                    ? (doc.metadata?.error as string) ?? undefined
-                    : undefined
-                }
-              />
+              <div className="flex items-center gap-2">
+                <ProcessingStatus
+                  status={doc.status}
+                  errorMessage={
+                    doc.status === "error"
+                      ? (doc.metadata?.error as string) ?? undefined
+                      : undefined
+                  }
+                />
+                {doc.status === "error" && (
+                  <Button
+                    variant="secondary"
+                    disabled={retryingId === doc.id}
+                    onClick={() => {
+                      retryDocRef.current = doc;
+                      retryInputRef.current?.click();
+                    }}
+                    data-testid={`retry-btn-${doc.id}`}
+                  >
+                    <RefreshCw
+                      className={`h-3.5 w-3.5 ${retryingId === doc.id ? "animate-spin" : ""}`}
+                    />
+                    {retryingId === doc.id ? "Retrying…" : "Retry"}
+                  </Button>
+                )}
+              </div>
             </Card>
           ))}
         </div>

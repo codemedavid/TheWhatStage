@@ -26,7 +26,7 @@ export async function GET() {
     return NextResponse.json({ error: "No tenant membership" }, { status: 403 });
   }
 
-  // Fetch conversations with joined lead info and last message
+  // Fetch conversations with joined lead info and only the latest message (limit 1)
   // Sort: needs_human DESC (escalated first), then last_message_at DESC
   const { data: conversations, error } = await service
     .from("conversations")
@@ -40,27 +40,25 @@ export async function GET() {
       escalation_reason,
       escalation_message_id,
       leads(fb_name, fb_profile_pic),
-      messages(text, created_at)
+      messages!messages_conversation_id_fkey(text, created_at)
     `
     )
     .eq("tenant_id", membership.tenant_id)
     .order("needs_human", { ascending: false })
     .order("last_message_at", { ascending: false })
+    .order("created_at", { referencedTable: "messages", ascending: false })
+    .limit(1, { referencedTable: "messages" })
     .limit(50);
 
   if (error) {
-    return NextResponse.json({ error: "Failed to fetch conversations" }, { status: 500 });
+    console.error("[inbox/conversations] Supabase error:", error);
+    return NextResponse.json({ error: "Failed to fetch conversations", detail: error.message }, { status: 500 });
   }
 
   const shaped = (conversations ?? []).map((conv) => {
-    // leads is a single joined row (one-to-one via lead_id FK)
     const lead = Array.isArray(conv.leads) ? conv.leads[0] : conv.leads;
-
-    // messages is an array; pick the most recent by created_at
     const messagesArr = Array.isArray(conv.messages) ? conv.messages : [];
-    const lastMsg = messagesArr.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )[0];
+    const lastMsg = messagesArr[0] ?? null;
 
     return {
       id: conv.id,

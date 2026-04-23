@@ -25,6 +25,7 @@ export default function RichTextEditor({ docs, onSaveComplete }: RichTextEditorP
   const richtextDocs = docs.filter((d) => d.type === "richtext");
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [StarterKit],
     editorProps: {
       attributes: {

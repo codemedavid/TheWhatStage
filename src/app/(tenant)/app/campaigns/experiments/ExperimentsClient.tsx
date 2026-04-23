@@ -45,13 +45,11 @@ export default function ExperimentsClient() {
 
       {experiments.length === 0 ? (
         <EmptyState
+          icon={Plus}
           title="No experiments yet"
           description="A/B test your campaigns to find what converts best"
-          action={
-            <Link href="/app/campaigns/experiments/new">
-              <Button variant="primary"><Plus className="h-4 w-4" /> Create Experiment</Button>
-            </Link>
-          }
+          actionLabel="Create Experiment"
+          actionHref="/app/campaigns/experiments/new"
         />
       ) : (
         <div className="space-y-3">

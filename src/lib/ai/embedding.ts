@@ -1,20 +1,17 @@
-const HF_API_URL =
-  "https://router.huggingface.co/hf-inference/models/Qwen/Qwen3-Embedding-8B/pipeline/feature-extraction";
+import { InferenceClient } from "@huggingface/inference";
+
+const MODEL = "BAAI/bge-large-en-v1.5";
+
+export const EMBEDDING_DIM = 1024;
 
 const BATCH_SIZE = 10;
-const FETCH_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 2;
 const RETRY_BACKOFF_MS = 1_000;
 
-/**
- * MRL truncation dimension. Qwen3-Embedding-8B outputs 4096 dims but supports
- * Matryoshka Representation Learning — we truncate to 1536 for pgvector HNSW
- * compatibility (max 2000 dims) while preserving semantic quality.
- */
-export const EMBEDDING_DIM = 1536;
-
-function truncate(vector: number[]): number[] {
-  return vector.slice(0, EMBEDDING_DIM);
+function getClient(): InferenceClient {
+  const token = process.env.HF_TOKEN;
+  if (!token) throw new Error("HF_TOKEN is not set");
+  return new InferenceClient(token);
 }
 
 function validateDimension(vector: number[], label: string): void {
@@ -25,71 +22,51 @@ function validateDimension(vector: number[], label: string): void {
   }
 }
 
-function getApiKey(): string {
-  const key = process.env.HUGGINGFACE_API_KEY;
-  if (!key) throw new Error("HUGGINGFACE_API_KEY is not set");
-  return key;
-}
-
-async function callEmbeddingApi(
+async function callFeatureExtraction(
   inputs: string | string[],
   retries = MAX_RETRIES
 ): Promise<number[][]> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const client = getClient();
 
   try {
-    const response = await fetch(HF_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${getApiKey()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ inputs }),
-      signal: controller.signal,
+    const result = await client.featureExtraction({
+      model: MODEL,
+      inputs,
+      provider: "hf-inference",
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      // Retry on 503 (model loading) with backoff
-      if (response.status === 503 && retries > 0) {
-        await new Promise((r) =>
-          setTimeout(r, RETRY_BACKOFF_MS * (MAX_RETRIES - retries + 1))
-        );
-        return callEmbeddingApi(inputs, retries - 1);
-      }
-      throw new Error(
-        `HuggingFace embedding API error (${response.status}): ${errorText}`
-      );
-    }
-
-    const result = await response.json();
-
-    // C2: Handle both response shapes — some HF endpoints return number[]
-    // for single-string input instead of number[][]
-    if (typeof inputs === "string" && !Array.isArray(result[0])) {
+    // SDK returns number[] for single string, number[][] for array
+    if (!Array.isArray(result[0])) {
       return [result as number[]];
     }
-
     return result as number[][];
-  } finally {
-    clearTimeout(timeoutId);
+  } catch (error) {
+    if (
+      retries > 0 &&
+      error instanceof Error &&
+      error.message.includes("503")
+    ) {
+      await new Promise((r) =>
+        setTimeout(r, RETRY_BACKOFF_MS * (MAX_RETRIES - retries + 1))
+      );
+      return callFeatureExtraction(inputs, retries - 1);
+    }
+    throw error;
   }
 }
 
 /**
- * Embed a single text string. Returns a 1536-dim float vector (MRL-truncated).
+ * Embed a single text string. Returns a 1024-dim float vector.
  */
 export async function embedText(text: string): Promise<number[]> {
-  const [raw] = await callEmbeddingApi(text);
-  const embedding = truncate(raw);
+  const [embedding] = await callFeatureExtraction(text);
   validateDimension(embedding, "embedText");
   return embedding;
 }
 
 /**
  * Embed multiple texts in batches of up to 10.
- * Returns one 1536-dim embedding per input text, in order.
+ * Returns one 1024-dim embedding per input text, in order.
  */
 export async function embedBatch(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
@@ -98,10 +75,9 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
-    const rawEmbeddings = await callEmbeddingApi(batch);
-    const truncated = rawEmbeddings.map(truncate);
-    truncated.forEach((v, j) => validateDimension(v, `embedBatch[${i + j}]`));
-    results.push(...truncated);
+    const embeddings = await callFeatureExtraction(batch);
+    embeddings.forEach((v, j) => validateDimension(v, `embedBatch[${i + j}]`));
+    results.push(...embeddings);
   }
 
   return results;

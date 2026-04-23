@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { resolveSession } from "@/lib/auth/session";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -12,26 +12,16 @@ const createSchema = z.object({
   follow_up_message: z.string().max(500).optional(),
 });
 
-async function authenticate() {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return { error: "Unauthorized", status: 401 };
-  const tenantId = user.app_metadata?.tenant_id as string | undefined;
-  if (!tenantId) return { error: "No tenant associated", status: 403 };
-  return { tenantId };
-}
-
 export async function GET() {
-  const auth = await authenticate();
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  const session = await resolveSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { tenantId } = session;
 
   const service = createServiceClient();
   const { data: campaigns, error } = await service
     .from("campaigns")
     .select("*")
-    .eq("tenant_id", auth.tenantId)
+    .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -42,10 +32,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await authenticate();
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  const session = await resolveSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { tenantId } = session;
 
   const body = await request.json();
   const parsed = createSchema.safeParse(body);
@@ -61,7 +50,7 @@ export async function POST(request: Request) {
   const { data: campaign, error } = await service
     .from("campaigns")
     .insert({
-      tenant_id: auth.tenantId,
+      tenant_id: tenantId,
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       goal: parsed.data.goal,

@@ -53,16 +53,11 @@ export default function CampaignsClient() {
 
       {campaigns.length === 0 ? (
         <EmptyState
+          icon={FlaskConical}
           title="No campaigns yet"
           description="Create your first campaign to start building conversation flows"
-          action={
-            <Link href="/app/campaigns/new">
-              <Button variant="primary">
-                <Plus className="h-4 w-4" />
-                Create Campaign
-              </Button>
-            </Link>
-          }
+          actionLabel="New Campaign"
+          actionHref="/app/campaigns/new"
         />
       ) : (
         <div className="space-y-3">
