@@ -15,6 +15,7 @@ import {
   X,
   Target,
   LogOut,
+  Plug,
 } from "lucide-react";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -35,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/app/campaigns", label: "Campaigns", icon: Target },
   { href: "/app/actions", label: "Actions", icon: Link2 },
   { href: "/app/workflows", label: "Workflows", icon: Zap },
+  { href: "/app/integrations", label: "Integrations", icon: Plug },
 ];
 
 function isActive(pathname: string, href: string, exact?: boolean) {

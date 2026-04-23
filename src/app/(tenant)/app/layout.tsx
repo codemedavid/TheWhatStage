@@ -27,20 +27,30 @@ export default async function DashboardLayout({
 
   const serviceClient = createServiceClient();
 
-  // Verify membership and fetch banner data in parallel
-  const [{ data: membership }, { data: tenant }] = await Promise.all([
-    serviceClient
-      .from("tenant_members")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .eq("tenant_id", tenantCtx.tenantId)
-      .maybeSingle(),
-    serviceClient
-      .from("tenants")
-      .select("fb_page_id, onboarding_completed")
-      .eq("id", tenantCtx.tenantId)
-      .single(),
-  ]);
+  const [{ data: membership }, { data: tenant }, { count: activeCount }, { count: expiredCount }] =
+    await Promise.all([
+      serviceClient
+        .from("tenant_members")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .eq("tenant_id", tenantCtx.tenantId)
+        .maybeSingle(),
+      serviceClient
+        .from("tenants")
+        .select("onboarding_completed")
+        .eq("id", tenantCtx.tenantId)
+        .single(),
+      serviceClient
+        .from("tenant_pages")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantCtx.tenantId)
+        .eq("status", "active"),
+      serviceClient
+        .from("tenant_pages")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantCtx.tenantId)
+        .eq("status", "token_expired"),
+    ]);
 
   if (!membership) {
     redirect("/login");
@@ -51,7 +61,8 @@ export default async function DashboardLayout({
       <DashboardNav tenantSlug={tenantCtx.tenantSlug} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <FacebookConnectBanner
-          fbPageId={tenant?.fb_page_id ?? null}
+          hasActivePages={(activeCount ?? 0) > 0}
+          hasExpiredPages={(expiredCount ?? 0) > 0}
           onboardingCompleted={tenant?.onboarding_completed ?? false}
         />
         <main className="flex-1 overflow-auto">{children}</main>

@@ -145,22 +145,18 @@ export default function SettingsClient({
           </div>
         </Card>
 
-        {/* Facebook */}
+        {/* Facebook — moved to Integrations */}
         <Card className="p-6">
-          <h2 className="mb-2 text-sm font-medium text-[var(--ws-text-tertiary)]">Facebook Page</h2>
+          <h2 className="mb-2 text-sm font-medium text-[var(--ws-text-tertiary)]">Facebook Pages</h2>
           <p className="mb-4 text-xs text-[var(--ws-text-muted)]">
-            Connect your Facebook page to start receiving Messenger leads.
+            Manage your connected Facebook Pages from the Integrations page.
           </p>
-          {tenant.fbPageId ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="h-2 w-2 rounded-full bg-[var(--ws-success)]" />
-              <span className="text-[var(--ws-text-secondary)]">
-                Connected — Page ID: {tenant.fbPageId}
-              </span>
-            </div>
-          ) : (
-            <Button variant="primary">Connect Facebook Page</Button>
-          )}
+          <a
+            href="/app/integrations"
+            className="text-sm font-medium text-[var(--ws-accent)] hover:underline"
+          >
+            Go to Integrations →
+          </a>
         </Card>
 
         {/* Stages */}
