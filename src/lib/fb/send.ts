@@ -70,6 +70,13 @@ function buildMessageBody(message: OutboundMessage): Record<string, unknown> {
   }
 }
 
+export class FacebookTokenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FacebookTokenError";
+  }
+}
+
 /**
  * Send a message to a Messenger user.
  */
@@ -84,14 +91,23 @@ export async function sendMessage(
     messaging_type: "RESPONSE",
   };
 
-  const res = await fetch(`${FB_BASE_URL}/me/messages?access_token=${pageAccessToken}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await fetch(
+    `${FB_BASE_URL}/me/messages?access_token=${pageAccessToken}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
 
   if (!res.ok) {
     const err = await res.json();
+    // Facebook error code 190 = invalid/expired token
+    if (err?.error?.code === 190) {
+      throw new FacebookTokenError(
+        `Page token expired or invalid: ${err.error.message}`
+      );
+    }
     throw new Error(`FB Send API error: ${JSON.stringify(err)}`);
   }
 
