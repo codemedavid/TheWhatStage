@@ -7,6 +7,7 @@ export type OnboardingStep =
   | "business-info"
   | "website"
   | "generation"
+  | "facebook"
   | "preview";
 
 export const STEP_ORDER: OnboardingStep[] = [
@@ -16,6 +17,7 @@ export const STEP_ORDER: OnboardingStep[] = [
   "business-info",
   "website",
   "generation",
+  "facebook",
   "preview",
 ];
 
@@ -26,6 +28,7 @@ export const STEP_LABELS: Record<OnboardingStep, string> = {
   "business-info": "Business Info",
   website: "Website",
   generation: "Setup",
+  facebook: "Facebook",
   preview: "Preview",
 };
 

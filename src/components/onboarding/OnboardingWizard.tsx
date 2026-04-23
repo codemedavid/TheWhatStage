@@ -1,6 +1,7 @@
 "use client";
 
-import { useReducer, useState } from "react";
+import { useReducer, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   STEP_ORDER,
   INITIAL_STATE,
@@ -18,6 +19,7 @@ import GoalStep from "./steps/GoalStep";
 import BusinessInfoStep from "./steps/BusinessInfoStep";
 import WebsiteStep from "./steps/WebsiteStep";
 import GenerationStep from "./steps/GenerationStep";
+import FacebookStep from "./steps/FacebookStep";
 import PreviewStep from "./steps/PreviewStep";
 
 function reducer(
@@ -72,6 +74,16 @@ export default function OnboardingWizard() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("fb_connected") === "true") {
+      dispatch({ type: "GO_TO_STEP", step: "preview" });
+    }
+    if (searchParams.get("step") === "facebook") {
+      dispatch({ type: "GO_TO_STEP", step: "facebook" });
+    }
+  }, [searchParams]);
 
   // Step navigation handlers
   function handleProfileNext(patch: {
@@ -245,6 +257,13 @@ export default function OnboardingWizard() {
               if (generationId) dispatch({ type: "SET_FIELD", field: "generationId", value: generationId });
               setGenerationError(errorMsg);
             }}
+          />
+        );
+      case "facebook":
+        return (
+          <FacebookStep
+            onNext={() => dispatch({ type: "NEXT_STEP" })}
+            onBack={() => dispatch({ type: "PREV_STEP" })}
           />
         );
       case "preview":
