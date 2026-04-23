@@ -2,14 +2,41 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { verifyFacebookSignature } from "@/lib/fb/signature";
 import { parseFbWebhook, type FbMessagingEvent } from "@/lib/fb/webhook";
+import {
+  getCachedPage,
+  setCachedPage,
+  type CachedPage,
+} from "@/lib/fb/page-cache";
 import type { Database } from "@/types/database";
 
 type Supabase = ReturnType<typeof createServiceClient>;
-type Tenant = Database["public"]["Tables"]["tenants"]["Row"];
 
-/**
- * GET /api/fb/webhook — Facebook webhook verification
- */
+async function resolvePageContext(
+  fbPageId: string,
+  supabase: Supabase
+): Promise<CachedPage | null> {
+  const cached = getCachedPage(fbPageId);
+  if (cached) return cached;
+
+  const { data } = await supabase
+    .from("tenant_pages")
+    .select("id, tenant_id, fb_page_token, fb_page_name")
+    .eq("fb_page_id", fbPageId)
+    .eq("status", "active")
+    .single();
+
+  if (!data) return null;
+
+  const page: CachedPage = {
+    tenantId: data.tenant_id,
+    pageToken: data.fb_page_token,
+    pageName: data.fb_page_name ?? "",
+    pageId: data.id,
+  };
+  setCachedPage(fbPageId, page);
+  return page;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get("hub.mode");
@@ -26,22 +53,27 @@ export async function GET(request: Request) {
     .select("id")
     .eq("fb_verify_token", token)
     .single();
-  const tenant = data as Pick<Tenant, "id"> | null;
 
-  if (!tenant) {
+  if (!data) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
   return new NextResponse(challenge, { status: 200 });
 }
 
-/**
- * POST /api/fb/webhook — Facebook webhook events
- */
 export async function POST(request: Request) {
   const rawBody = await request.arrayBuffer();
   const bodyBuffer = Buffer.from(rawBody);
   const signature = request.headers.get("x-hub-signature-256");
+
+  const appSecret = process.env.FB_APP_SECRET;
+  if (appSecret && signature) {
+    const valid = verifyFacebookSignature(bodyBuffer, signature, appSecret);
+    if (!valid) {
+      console.warn("Invalid webhook signature");
+      return new NextResponse("Invalid signature", { status: 403 });
+    }
+  }
 
   let body: unknown;
   try {
@@ -58,27 +90,21 @@ export async function POST(request: Request) {
   const supabase = createServiceClient();
 
   for (const entry of webhookBody.entry) {
-    const pageId = entry.id;
+    const fbPageId = entry.id;
 
-    const { data } = await supabase
-      .from("tenants")
-      .select("id, fb_page_token, fb_app_secret, fb_verify_token")
-      .eq("fb_page_id", pageId)
-      .single();
-    const tenant = data as Pick<Tenant, "id" | "fb_page_token" | "fb_app_secret" | "fb_verify_token"> | null;
-
-    if (!tenant) continue;
-
-    if (tenant.fb_app_secret) {
-      const valid = verifyFacebookSignature(bodyBuffer, signature, tenant.fb_app_secret);
-      if (!valid) {
-        console.warn(`Invalid signature for tenant ${tenant.id}`);
-        continue;
-      }
+    const pageCtx = await resolvePageContext(fbPageId, supabase);
+    if (!pageCtx) {
+      console.warn(`No active tenant_page found for fb_page_id: ${fbPageId}`);
+      continue;
     }
 
     for (const event of entry.messaging) {
-      await processMessagingEvent(tenant.id, event, supabase);
+      await processMessagingEvent(
+        pageCtx.tenantId,
+        pageCtx.pageId,
+        event,
+        supabase
+      );
     }
   }
 
@@ -87,6 +113,7 @@ export async function POST(request: Request) {
 
 async function processMessagingEvent(
   tenantId: string,
+  pageId: string,
   event: FbMessagingEvent,
   supabase: Supabase
 ) {
@@ -98,6 +125,7 @@ async function processMessagingEvent(
       {
         tenant_id: tenantId,
         psid,
+        page_id: pageId,
         last_active_at: new Date(event.timestamp).toISOString(),
       } as Database["public"]["Tables"]["leads"]["Insert"],
       { onConflict: "tenant_id,psid" }
@@ -151,7 +179,10 @@ async function processMessagingEvent(
       tenant_id: tenantId,
       lead_id: lead.id,
       type: "action_click",
-      payload: { payload: event.postback.payload, title: event.postback.title },
+      payload: {
+        payload: event.postback.payload,
+        title: event.postback.title,
+      },
     } as Database["public"]["Tables"]["lead_events"]["Insert"]);
   }
 }
