@@ -36,6 +36,18 @@ export interface Database {
         onboarding_completed: boolean;
         created_at: string;
       }>;
+      tenant_pages: TableRow<{
+        id: string;
+        tenant_id: string;
+        fb_page_id: string;
+        fb_page_name: string | null;
+        fb_page_avatar: string | null;
+        fb_page_token: string;
+        fb_user_token: string | null;
+        status: string;
+        connected_at: string;
+        token_refreshed_at: string | null;
+      }>;
       tenant_members: TableRow<{
         tenant_id: string;
         user_id: string;
@@ -49,6 +61,7 @@ export interface Database {
         fb_name: string | null;
         fb_profile_pic: string | null;
         stage_id: string | null;
+        page_id: string | null;
         tags: string[];
         created_at: string;
         last_active_at: string;
@@ -354,6 +367,14 @@ export interface Database {
           context_hint: string | null;
           similarity: number;
         }[];
+      };
+      get_page_lead_counts: {
+        Args: { p_tenant_id: string };
+        Returns: { page_id: string; count: number }[];
+      };
+      get_page_message_counts: {
+        Args: { p_tenant_id: string };
+        Returns: { page_id: string; count: number }[];
       };
     };
     Enums: Record<string, never>;
