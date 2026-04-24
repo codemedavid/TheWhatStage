@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { redirectAfterAuth } from "@/lib/auth/redirect";
+import { TENANT_COOKIE_NAME, tenantCookieOptions } from "@/lib/auth/tenant-cookie";
 
 /* ─── How it works — replaces emoji feature cards ──────────────── */
 const STEPS = [
@@ -136,30 +137,42 @@ export default function SignupPage() {
     setError(null);
     setLoading(true);
 
-    const signupRes = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const signupRes = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (!signupRes.ok) {
-      const data = await signupRes.json();
-      setError(data.error ?? "Failed to create account");
+      if (!signupRes.ok) {
+        const data = await signupRes.json();
+        setError(data.error ?? "Failed to create account");
+        setLoading(false);
+        return;
+      }
+
+      const supabase = createClient();
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+
+      const accessToken = data.session?.access_token;
+      const { path, slug } = await redirectAfterAuth(accessToken);
+
+      if (slug) {
+        const opts = tenantCookieOptions();
+        document.cookie = `${TENANT_COOKIE_NAME}=${slug}; path=${opts.path}; domain=${opts.domain}; samesite=${opts.sameSite}; max-age=${opts.maxAge}`;
+      }
+
+      window.location.href = path;
+    } catch {
+      setError("Something went wrong. Please try again.");
       setLoading(false);
-      return;
     }
-
-    const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (signInError) {
-      setError(signInError.message);
-      setLoading(false);
-      return;
-    }
-
-    const destination = await redirectAfterAuth();
-    window.location.href = destination;
   }
 
   return (

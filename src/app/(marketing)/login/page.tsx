@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { redirectAfterAuth } from "@/lib/auth/redirect";
+import { TENANT_COOKIE_NAME, tenantCookieOptions } from "@/lib/auth/tenant-cookie";
 
 /* ─── Pipeline widget — replaces the emoji chat demo ───────────── */
 const STAGES = [
@@ -96,17 +97,29 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const supabase = createClient();
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error) {
-      setError(error.message);
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+
+      const accessToken = data.session?.access_token;
+      const { path, slug } = await redirectAfterAuth(accessToken);
+
+      if (slug) {
+        const opts = tenantCookieOptions();
+        document.cookie = `${TENANT_COOKIE_NAME}=${slug}; path=${opts.path}; domain=${opts.domain}; samesite=${opts.sameSite}; max-age=${opts.maxAge}`;
+      }
+
+      window.location.href = path;
+    } catch {
+      setError("Something went wrong. Please try again.");
       setLoading(false);
-      return;
     }
-
-    const destination = await redirectAfterAuth();
-    window.location.href = destination;
   }
 
   return (
