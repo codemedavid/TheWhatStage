@@ -94,6 +94,8 @@ export default function LeadsClient({
     ? {
         id: selectedLead.id,
         fbName: selectedLead.fbName,
+        firstName: null,
+        lastName: null,
         fbProfilePic: selectedLead.fbProfilePic,
         psid: selectedLead.psid,
         stageId: selectedLead.stageId,
@@ -103,6 +105,7 @@ export default function LeadsClient({
         stageColor: selectedLead.stageId
           ? stageMap.get(selectedLead.stageId)?.color ?? null
           : null,
+        campaignName: null,
         tags: selectedLead.tags,
         createdAt: selectedLead.createdAt,
         lastActiveAt: selectedLead.lastActiveAt,
