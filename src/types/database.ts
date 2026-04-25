@@ -13,6 +13,14 @@ type TableRow<T> = {
   Relationships: [];
 };
 
+export type CampaignPlanJson = {
+  goal_summary: string;
+  selling_approach: string;
+  buyer_context: string;
+  key_behaviors: string[];
+  phase_outline: { name: string; purpose: string }[];
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -62,6 +70,9 @@ export interface Database {
         fb_profile_pic: string | null;
         stage_id: string | null;
         page_id: string | null;
+        first_name: string | null;
+        last_name: string | null;
+        campaign_id: string | null;
         tags: string[];
         created_at: string;
         last_active_at: string;
@@ -79,6 +90,49 @@ export interface Database {
         lead_id: string;
         type: "message_in" | "message_out" | "action_click" | "form_submit" | "appointment_booked" | "purchase" | "stage_changed";
         payload: Json;
+        created_at: string;
+      }>;
+      lead_contacts: TableRow<{
+        id: string;
+        tenant_id: string;
+        lead_id: string;
+        type: "phone" | "email";
+        value: string;
+        is_primary: boolean;
+        source: "ai_extracted" | "manual" | "form_submit";
+        created_at: string;
+      }>;
+      lead_knowledge: TableRow<{
+        id: string;
+        tenant_id: string;
+        lead_id: string;
+        key: string;
+        value: string;
+        source: "ai_extracted" | "manual";
+        extracted_from: string | null;
+        created_at: string;
+        updated_at: string;
+      }>;
+      lead_stage_history: TableRow<{
+        id: string;
+        tenant_id: string;
+        lead_id: string;
+        from_stage_id: string | null;
+        to_stage_id: string;
+        reason: string;
+        actor_type: "ai" | "agent" | "automation";
+        actor_id: string | null;
+        duration_seconds: number | null;
+        created_at: string;
+      }>;
+      lead_notes: TableRow<{
+        id: string;
+        tenant_id: string;
+        lead_id: string;
+        type: "agent_note" | "ai_summary";
+        content: string;
+        author_id: string | null;
+        conversation_id: string | null;
         created_at: string;
       }>;
       conversations: TableRow<{
@@ -232,6 +286,8 @@ export interface Database {
         status: "draft" | "active" | "paused" | "archived";
         follow_up_delay_minutes: number;
         follow_up_message: string | null;
+        campaign_plan: CampaignPlanJson | null;
+        campaign_rules: string[];
         created_at: string;
         updated_at: string;
       }>;
