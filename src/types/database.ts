@@ -175,6 +175,7 @@ export interface Database {
         slug: string;
         type: "form" | "calendar" | "sales" | "product_catalog" | "checkout";
         title: string;
+        cta_text: string | null;
         config: Json;
         published: boolean;
         version: number;
