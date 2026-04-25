@@ -233,6 +233,35 @@ function buildAvailableImages(images?: KnowledgeImage[]): string {
   return lines.join("\n");
 }
 
+// Layer 6.5 — action buttons
+interface ActionButtonInfo {
+  id: string;
+  title: string;
+  type: string;
+  cta_text: string | null;
+}
+
+function buildAvailableActionButtons(buttons: ActionButtonInfo[]): string {
+  const header = "--- ACTION BUTTONS AVAILABLE ---";
+  if (buttons.length === 0) return "";
+
+  const lines = [
+    header,
+    "You can send ONE action button when the lead is ready. Available buttons:",
+  ];
+  for (const btn of buttons) {
+    const cta = btn.cta_text ?? "Check this out";
+    lines.push(`- id: "${btn.id}" | title: "${btn.title}" | type: ${btn.type} | default_cta: "${cta}"`);
+  }
+  lines.push(
+    "",
+    'To send a button, include "action_button_id" in your JSON response with the button\'s id.',
+    'Optionally include "cta_text" with a personalized call-to-action message. If omitted, the default is used.',
+    "Only send a button when the timing feels natural — after building rapport or qualifying the lead. Do not send a button in every message."
+  );
+  return lines.join("\n");
+}
+
 // Layer 7 — business offering & direction
 function buildOfferingContext(
   businessType: string,
@@ -279,13 +308,17 @@ You MUST respond with a JSON object and nothing else. No text before or after th
   "phase_action": "stay or advance or escalate",
   "confidence": 0.0 to 1.0,
   "image_ids": [],
-  "cited_chunks": [1, 2]
+  "cited_chunks": [1, 2],
+  "action_button_id": "optional — id of the action button to send, or omit",
+  "cta_text": "optional — personalized call-to-action text, or omit to use default"
 }
 
 - "phase_action": "stay" to remain, "advance" if lead is ready, "escalate" if you cannot help.
 - "confidence": 1.0 = very confident, 0.0 = not confident. Set below 0.4 if unsure.
 - "image_ids": Image IDs to send. Empty array if none.
-- "cited_chunks": Indices of the knowledge chunks you used (e.g. [1, 2]).`;
+- "cited_chunks": Indices of the knowledge chunks you used (e.g. [1, 2]).
+- "action_button_id": Include ONLY when you want to send an action button. Omit otherwise.
+- "cta_text": Custom call-to-action text for the button. Omit to use the default.`;
 }
 
 // Layer 5.5 — lead-specific context from contacts, knowledge, and form submissions
@@ -472,7 +505,23 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   const leadLayer = buildLeadContext(leadContextData);
 
-  return [layer1, layer2, campaignRulesLayer, layer3, layer4, layer5, layer6, layer7, layer8, leadLayer, layer9, layer10]
+  // Fetch action button info if phase has action buttons
+  let actionButtons: ActionButtonInfo[] = [];
+  if (ctx.currentPhase.actionButtonIds && ctx.currentPhase.actionButtonIds.length > 0) {
+    const { data: actionPages } = await supabase
+      .from("action_pages")
+      .select("id, title, type, cta_text")
+      .eq("tenant_id", ctx.tenantId)
+      .in("id", ctx.currentPhase.actionButtonIds);
+
+    if (actionPages) {
+      actionButtons = actionPages as ActionButtonInfo[];
+    }
+  }
+
+  const actionButtonsLayer = buildAvailableActionButtons(actionButtons);
+
+  return [layer1, layer2, campaignRulesLayer, layer3, layer4, layer5, layer6, layer7, layer8, leadLayer, layer9, actionButtonsLayer, layer10]
     .filter((l) => l.length > 0)
     .join("\n\n");
 }

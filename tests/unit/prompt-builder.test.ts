@@ -106,11 +106,54 @@ describe("buildSystemPrompt", () => {
     mockFrom.mockReset();
   });
 
+  it("includes sales strategy guidance without impersonating a sales figure", async () => {
+    setupMocks();
+
+    const prompt = await buildSystemPrompt(makeContext());
+
+    expect(prompt).toContain("SALES CONVERSATION STRATEGY");
+    expect(prompt).toContain("Use this as hidden reasoning, not as a script");
+    expect(prompt).toContain("Clarify:");
+    expect(prompt).toContain("Sell outcome:");
+    expect(prompt).toContain("Do not force every step");
+    expect(prompt.toLowerCase()).not.toContain("act like alex");
+  });
+
+  it("frames current phase as advisory guidance instead of a rigid script", async () => {
+    setupMocks();
+
+    const prompt = await buildSystemPrompt(makeContext());
+
+    expect(prompt).toContain("The phase is guidance, not a rule");
+    expect(prompt).toContain("respond to the lead's intent first");
+    expect(prompt).toContain("You may advance when the conversation naturally moves forward");
+  });
+
+  it("instructs vague high-intent messages to default to the current offer", async () => {
+    setupMocks();
+
+    const prompt = await buildSystemPrompt(
+      makeContext({
+        campaign: {
+          name: "Spring Enrollment",
+          description: "A coaching program for small businesses that want more qualified leads.",
+          goal: "form_submit",
+        },
+      })
+    );
+
+    expect(prompt).toContain('If the lead says "interested"');
+    expect(prompt).toContain("Assume they mean the current offer if one is available");
+    expect(prompt).toContain('Do not ask "interested in what?"');
+    expect(prompt).toContain("Spring Enrollment");
+    expect(prompt).toContain("A coaching program for small businesses");
+  });
+
   it("layer 1 — base persona includes business name", async () => {
     setupMocks();
     const prompt = await buildSystemPrompt(makeContext());
     expect(prompt).toContain("Acme Corp");
-    expect(prompt).toContain("real human");
+    expect(prompt).toContain("real person");
     expect(prompt).toContain("conversational");
   });
 
@@ -143,7 +186,8 @@ describe("buildSystemPrompt", () => {
   it("layer 3 — current phase details included", async () => {
     setupMocks();
     const prompt = await buildSystemPrompt(makeContext());
-    expect(prompt).toContain("CURRENT PHASE: Greeting");
+    expect(prompt).toContain("WHERE YOU ARE IN THE CONVERSATION");
+    expect(prompt).toContain("Phase: Greeting");
     expect(prompt).toContain("Welcome the lead warmly.");
     expect(prompt).toContain("friendly");
   });
@@ -281,7 +325,7 @@ describe("buildSystemPrompt", () => {
     // Layer 2 - bot rules
     expect(prompt).toContain("BOT RULES");
     // Layer 3 - current phase
-    expect(prompt).toContain("CURRENT PHASE");
+    expect(prompt).toContain("WHERE YOU ARE IN THE CONVERSATION");
     // Layer 4 - conversation history
     expect(prompt).toContain("CONVERSATION HISTORY");
     // Layer 5 - retrieved knowledge
@@ -290,6 +334,45 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("AVAILABLE IMAGES");
     // Layer 7 - response format
     expect(prompt).toContain("RESPONSE FORMAT");
+  });
+
+  it("includes campaign rules as Layer 2.5 when provided", async () => {
+    setupMocks();
+
+    const prompt = await buildSystemPrompt(
+      makeContext({
+        campaign: {
+          name: "Trust First",
+          description: "Trust-first campaign.",
+          goal: "form_submit",
+          campaignRules: [
+            "Always mention the free consultation",
+            "Never discuss pricing until phase 2",
+          ],
+        },
+      })
+    );
+
+    expect(prompt).toContain("--- CAMPAIGN RULES ---");
+    expect(prompt).toContain("Always mention the free consultation");
+    expect(prompt).toContain("Never discuss pricing until phase 2");
+  });
+
+  it("skips campaign rules layer when rules are empty", async () => {
+    setupMocks();
+
+    const prompt = await buildSystemPrompt(
+      makeContext({
+        campaign: {
+          name: "Trust First",
+          description: "Trust-first campaign.",
+          goal: "form_submit",
+          campaignRules: [],
+        },
+      })
+    );
+
+    expect(prompt).not.toContain("--- CAMPAIGN RULES ---");
   });
 
   it("phase with null goals and transitionHint does not crash", async () => {
@@ -302,7 +385,97 @@ describe("buildSystemPrompt", () => {
     const prompt = await buildSystemPrompt(
       makeContext({ currentPhase: phaseWithNulls })
     );
-    expect(prompt).toContain("CURRENT PHASE: Greeting");
+    expect(prompt).toContain("Phase: Greeting");
     expect(prompt).not.toContain("undefined");
+  });
+
+  describe("action button prompt section", () => {
+    it("includes available action buttons when phase has actionButtonIds", async () => {
+      setupMocks();
+
+      // 4th mockFrom call will be action_pages
+      const actionPagesChain = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            in: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "ap-1",
+                  title: "Free Consultation",
+                  type: "calendar",
+                  cta_text: "Book now!",
+                },
+              ],
+              error: null,
+            }),
+          }),
+        }),
+      };
+      mockFrom.mockReturnValueOnce(actionPagesChain);
+
+      const phase: CurrentPhase = {
+        conversationPhaseId: "cp-1",
+        phaseId: "p-1",
+        name: "Qualification",
+        orderIndex: 0,
+        maxMessages: 5,
+        systemPrompt: "Qualify the lead",
+        tone: "friendly",
+        goals: "Understand their needs",
+        transitionHint: null,
+        actionButtonIds: ["ap-1"],
+        messageCount: 2,
+      };
+
+      const ctx: PromptContext = {
+        tenantId: "t-1",
+        businessName: "Test Biz",
+        currentPhase: phase,
+        conversationId: "conv-1",
+        ragChunks: [],
+      };
+
+      const prompt = await buildSystemPrompt(ctx);
+      expect(prompt).toContain("ACTION BUTTONS AVAILABLE");
+      expect(prompt).toContain("Free Consultation");
+      expect(prompt).toContain("ap-1");
+      expect(prompt).toContain("Book now!");
+    });
+
+    it("does not include action buttons section when phase has no actionButtonIds", async () => {
+      setupMocks();
+
+      const phase: CurrentPhase = {
+        conversationPhaseId: "cp-1",
+        phaseId: "p-1",
+        name: "Qualification",
+        orderIndex: 0,
+        maxMessages: 5,
+        systemPrompt: "Qualify the lead",
+        tone: "friendly",
+        goals: null,
+        transitionHint: null,
+        actionButtonIds: null,
+        messageCount: 0,
+      };
+
+      const ctx: PromptContext = {
+        tenantId: "t-1",
+        businessName: "Test Biz",
+        currentPhase: phase,
+        conversationId: "conv-1",
+        ragChunks: [],
+      };
+
+      const prompt = await buildSystemPrompt(ctx);
+      expect(prompt).not.toContain("ACTION BUTTONS AVAILABLE");
+    });
+
+    it("includes action_button_id in response format instructions", async () => {
+      setupMocks();
+      const prompt = await buildSystemPrompt(makeContext());
+      expect(prompt).toContain('"action_button_id"');
+      expect(prompt).toContain('"cta_text"');
+    });
   });
 });
