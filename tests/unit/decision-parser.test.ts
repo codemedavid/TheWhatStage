@@ -188,4 +188,59 @@ describe("parseDecision", () => {
     const result = parseDecision(raw);
     expect(result.imageIds).toEqual([]);
   });
+
+  it("parses action_button_id when present", () => {
+    const raw = JSON.stringify({
+      message: "Check this out!",
+      phase_action: "stay",
+      confidence: 0.9,
+      image_ids: [],
+      action_button_id: "ap-123",
+      cta_text: "Book your free consultation!",
+    });
+
+    const result = parseDecision(raw);
+    expect(result.actionButtonId).toBe("ap-123");
+    expect(result.ctaText).toBe("Book your free consultation!");
+  });
+
+  it("returns null actionButtonId when not present", () => {
+    const raw = JSON.stringify({
+      message: "Hey there!",
+      phase_action: "stay",
+      confidence: 0.85,
+      image_ids: [],
+    });
+
+    const result = parseDecision(raw);
+    expect(result.actionButtonId).toBeNull();
+    expect(result.ctaText).toBeNull();
+  });
+
+  it("returns null actionButtonId when value is not a string", () => {
+    const raw = JSON.stringify({
+      message: "Hey",
+      phase_action: "stay",
+      confidence: 0.8,
+      image_ids: [],
+      action_button_id: 42,
+    });
+
+    const result = parseDecision(raw);
+    expect(result.actionButtonId).toBeNull();
+  });
+
+  it("returns null ctaText when action_button_id is absent even if cta_text is present", () => {
+    const raw = JSON.stringify({
+      message: "Hey",
+      phase_action: "stay",
+      confidence: 0.8,
+      image_ids: [],
+      cta_text: "Click me!",
+    });
+
+    const result = parseDecision(raw);
+    expect(result.actionButtonId).toBeNull();
+    expect(result.ctaText).toBeNull();
+  });
 });

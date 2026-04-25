@@ -3,6 +3,8 @@ export interface LLMDecision {
   phaseAction: "stay" | "advance" | "escalate";
   confidence: number;
   imageIds: string[];
+  actionButtonId: string | null;
+  ctaText: string | null;
 }
 
 const VALID_ACTIONS = new Set(["stay", "advance", "escalate"]);
@@ -49,6 +51,8 @@ export function parseDecision(raw: string): LLMDecision {
       phaseAction: "escalate",
       confidence: 0.5,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     };
   }
 
@@ -74,5 +78,15 @@ export function parseDecision(raw: string): LLMDecision {
     ? obj.image_ids.filter((id): id is string => typeof id === "string")
     : [];
 
-  return { message, phaseAction, confidence, imageIds };
+  const actionButtonId =
+    typeof obj.action_button_id === "string" && obj.action_button_id.length > 0
+      ? obj.action_button_id
+      : null;
+
+  const ctaText =
+    actionButtonId !== null && typeof obj.cta_text === "string" && obj.cta_text.length > 0
+      ? obj.cta_text
+      : null;
+
+  return { message, phaseAction, confidence, imageIds, actionButtonId, ctaText };
 }
