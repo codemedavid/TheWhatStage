@@ -34,6 +34,13 @@ vi.mock("@/lib/ai/campaign-assignment", () => ({
   getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
 }));
 
+vi.mock("@/lib/leads/knowledge-extractor", () => ({
+  extractKnowledge: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/lib/leads/summary-generator", () => ({
+  generateLeadSummary: vi.fn().mockResolvedValue(undefined),
+}));
+
 const mockUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockResolvedValue({ error: null }),
 });
@@ -66,6 +73,23 @@ vi.mock("@/lib/supabase/service", () => ({
           }),
         };
       }
+      if (table === "campaigns") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  name: "Primary Offer",
+                  description: "A lead generation service for local businesses.",
+                  goal: "form_submit",
+                  campaign_rules: [],
+                },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "knowledge_images") {
         return {
           select: vi.fn().mockReturnValue({
@@ -78,6 +102,21 @@ vi.mock("@/lib/supabase/service", () => ({
       if (table === "escalation_events") {
         return {
           insert: mockInsert,
+        };
+      }
+      if (table === "messages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              neq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                  }),
+                }),
+              }),
+            }),
+          }),
         };
       }
       return {
@@ -136,6 +175,7 @@ beforeEach(() => {
     status: "success",
     chunks: [{ id: "c1", content: "Info", similarity: 0.8, metadata: {} }],
     queryTarget: "general",
+    retrievalPass: 1,
   });
   mockBuildSystemPrompt.mockResolvedValue("system prompt");
   mockGenerateResponse.mockResolvedValue({
@@ -164,10 +204,22 @@ describe("handleMessage", () => {
 
     // All pipeline steps called
     expect(mockGetCurrentPhase).toHaveBeenCalledWith("conv-1", "campaign-id-1");
-    expect(mockRetrieveKnowledge).toHaveBeenCalledWith({
-      query: "Hello, I need help",
-      tenantId: "tenant-1",
-    });
+    expect(mockRetrieveKnowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Hello, I need help",
+        tenantId: "tenant-1",
+        context: expect.objectContaining({
+          businessName: "Acme Corp",
+          currentPhaseName: "Greet",
+          campaign: {
+            name: "Primary Offer",
+            description: "A lead generation service for local businesses.",
+            goal: "form_submit",
+            campaignRules: [],
+          },
+        }),
+      })
+    );
     expect(mockBuildSystemPrompt).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: "tenant-1",
@@ -175,6 +227,12 @@ describe("handleMessage", () => {
         currentPhase: defaultPhase,
         conversationId: "conv-1",
         ragChunks: [{ id: "c1", content: "Info", similarity: 0.8, metadata: {} }],
+        campaign: {
+          name: "Primary Offer",
+          description: "A lead generation service for local businesses.",
+          goal: "form_submit",
+          campaignRules: [],
+        },
       })
     );
     expect(mockGenerateResponse).toHaveBeenCalledWith("system prompt", "Hello, I need help");
@@ -193,6 +251,41 @@ describe("handleMessage", () => {
       escalated: false,
       paused: false,
     });
+  });
+
+  it("passes assigned campaign context into retrieval and prompt building", async () => {
+    await handleMessage({
+      ...defaultInput,
+      leadMessage: "Interested",
+    });
+
+    expect(mockRetrieveKnowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Interested",
+        tenantId: "tenant-1",
+        context: expect.objectContaining({
+          businessName: "Acme Corp",
+          currentPhaseName: "Greet",
+          campaign: {
+            name: "Primary Offer",
+            description: "A lead generation service for local businesses.",
+            goal: "form_submit",
+            campaignRules: [],
+          },
+        }),
+      })
+    );
+
+    expect(mockBuildSystemPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaign: {
+          name: "Primary Offer",
+          description: "A lead generation service for local businesses.",
+          goal: "form_submit",
+          campaignRules: [],
+        },
+      })
+    );
   });
 
   it("calls advancePhase when phaseAction is 'advance'", async () => {
@@ -320,6 +413,23 @@ describe("handleMessage", () => {
             }),
           };
         }
+        if (table === "campaigns") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    name: "Primary Offer",
+                    description: "A lead generation service for local businesses.",
+                    goal: "form_submit",
+                    campaign_rules: [],
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
         if (table === "knowledge_images") {
           return {
             select: vi.fn().mockReturnValue({
@@ -339,10 +449,25 @@ describe("handleMessage", () => {
         if (table === "escalation_events") {
           return { insert: mockInsert };
         }
+        if (table === "messages") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                neq: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockReturnValue({
+                      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
         return { update: mockUpdate };
       }),
       rpc: vi.fn(),
-    } as ReturnType<typeof createServiceClient>);
+    } as unknown as ReturnType<typeof createServiceClient>);
 
     const result = await handleMessage(defaultInput);
 

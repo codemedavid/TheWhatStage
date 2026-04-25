@@ -2,12 +2,14 @@ import { getCurrentPhase, advancePhase, incrementMessageCount } from "@/lib/ai/p
 import { getOrAssignCampaign } from "@/lib/ai/campaign-assignment";
 import { retrieveKnowledge } from "@/lib/ai/retriever";
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
-import type { KnowledgeImage } from "@/lib/ai/prompt-builder";
+import type { CampaignContext, KnowledgeImage } from "@/lib/ai/prompt-builder";
 import { generateResponse } from "@/lib/ai/llm-client";
 import { parseDecision } from "@/lib/ai/decision-parser";
 import { selectImages } from "@/lib/ai/image-selector";
 import { parseResponse } from "@/lib/ai/response-parser";
 import { createServiceClient } from "@/lib/supabase/service";
+import { extractKnowledge } from "@/lib/leads/knowledge-extractor";
+import { generateLeadSummary } from "@/lib/leads/summary-generator";
 
 export interface EngineInput {
   tenantId: string;
@@ -118,8 +120,31 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   // Step 1: Get/initialize current phase
   const currentPhase = await getCurrentPhase(conversationId, campaignId);
 
+  const { data: campaignData } = await supabase
+    .from("campaigns")
+    .select("name, description, goal, campaign_rules")
+    .eq("id", campaignId)
+    .single();
+
+  const campaignContext: CampaignContext | undefined = campaignData
+    ? {
+        name: campaignData.name,
+        description: campaignData.description,
+        goal: campaignData.goal,
+        campaignRules: (campaignData.campaign_rules as string[] | null) ?? [],
+      }
+    : undefined;
+
   // Step 2: Retrieve relevant knowledge
-  const retrieval = await retrieveKnowledge({ query: leadMessage, tenantId });
+  const retrieval = await retrieveKnowledge({
+    query: leadMessage,
+    tenantId,
+    context: {
+      businessName,
+      currentPhaseName: currentPhase.name,
+      campaign: campaignContext,
+    },
+  });
 
   // Step 3: Fetch tenant image config
   const { data: tenantConfig } = await supabase
@@ -155,6 +180,7 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     conversationId,
     ragChunks: retrieval.chunks,
     images: promptImages.length > 0 ? promptImages : undefined,
+    campaign: campaignContext,
   });
 
   // Step 6: Call LLM
@@ -220,6 +246,36 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
 
   // Step 12: Increment message count
   await incrementMessageCount(currentPhase.conversationPhaseId);
+
+  // Step 12b: Extract knowledge from lead message (non-blocking)
+  extractKnowledge({
+    tenantId,
+    leadId,
+    messageText: leadMessage,
+    messageId: leadMessageId ?? null,
+  }).catch(() => {
+    // Swallowed — extraction is best-effort
+  });
+
+  // Step 12c: Check for conversation idle gap and trigger summary
+  const { data: lastMsg } = await supabase
+    .from("messages")
+    .select("created_at")
+    .eq("conversation_id", conversationId)
+    .neq("id", leadMessageId ?? "")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastMsg?.created_at) {
+    const gap = Date.now() - new Date(lastMsg.created_at).getTime();
+    const TEN_MINUTES_MS = 10 * 60 * 1000;
+    if (gap >= TEN_MINUTES_MS) {
+      generateLeadSummary({ tenantId, leadId, conversationId }).catch(() => {
+        // Swallowed — summary is best-effort
+      });
+    }
+  }
 
   // Step 13: Apply confidence hedging to cleaned message
   const finalMessage = applyHedging(parsed.cleanMessage, decision.confidence);
