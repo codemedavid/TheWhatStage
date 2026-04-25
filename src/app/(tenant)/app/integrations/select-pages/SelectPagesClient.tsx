@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface AvailablePage {
   id: string;
@@ -13,6 +13,9 @@ interface AvailablePage {
 
 export default function SelectPagesClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fbToken = searchParams.get("fb_token");
+
   const [pages, setPages] = useState<AvailablePage[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -21,8 +24,16 @@ export default function SelectPagesClient() {
 
   useEffect(() => {
     async function fetchPages() {
+      if (!fbToken) {
+        setError("No Facebook session. Please authenticate with Facebook first.");
+        setLoading(false);
+        return;
+      }
+
       try {
-        const res = await fetch("/api/integrations/fb-pages/available");
+        const res = await fetch(
+          `/api/integrations/fb-pages/available?fb_token=${encodeURIComponent(fbToken)}`
+        );
         if (!res.ok) {
           const data = await res.json();
           setError(data.error ?? "Failed to load pages");
@@ -37,7 +48,7 @@ export default function SelectPagesClient() {
       }
     }
     fetchPages();
-  }, []);
+  }, [fbToken]);
 
   function togglePage(pageId: string) {
     setSelected((prev) => {
@@ -52,7 +63,7 @@ export default function SelectPagesClient() {
   }
 
   async function handleConnect() {
-    if (selected.size === 0) return;
+    if (selected.size === 0 || !fbToken) return;
     setConnecting(true);
     setError(null);
 
@@ -60,7 +71,10 @@ export default function SelectPagesClient() {
       const res = await fetch("/api/integrations/fb-pages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pageIds: Array.from(selected) }),
+        body: JSON.stringify({
+          pageIds: Array.from(selected),
+          fbToken,
+        }),
       });
 
       if (!res.ok) {

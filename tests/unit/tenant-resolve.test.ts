@@ -20,4 +20,14 @@ describe("extractSubdomain", () => {
   it("returns null for unrelated domains", () => {
     expect(extractSubdomain("example.com")).toBeNull();
   });
+
+  it("extracts tenant subdomains from the configured app domain", () => {
+    const originalDomain = process.env.NEXT_PUBLIC_APP_DOMAIN;
+    process.env.NEXT_PUBLIC_APP_DOMAIN = "https://pluckless-jonas-uninclinable.ngrok-free.dev";
+
+    expect(extractSubdomain("acme.pluckless-jonas-uninclinable.ngrok-free.dev")).toBe("acme");
+    expect(extractSubdomain("pluckless-jonas-uninclinable.ngrok-free.dev")).toBeNull();
+
+    process.env.NEXT_PUBLIC_APP_DOMAIN = originalDomain;
+  });
 });

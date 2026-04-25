@@ -28,6 +28,15 @@ const putSchema = z.object({
   fields: z.array(fieldSchema),
 });
 
+function formatZodError(error: z.ZodError): string {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+      return `${path}${issue.message}`;
+    })
+    .join("; ");
+}
+
 export async function GET(_request: Request, context: RouteContext) {
   const session = await resolveSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -56,7 +65,7 @@ export async function PUT(request: Request, context: RouteContext) {
   const parsed = putSchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 });
   }
 
   const supabase = createServiceClient();

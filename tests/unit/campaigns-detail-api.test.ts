@@ -85,6 +85,43 @@ describe("PATCH /api/campaigns/[id]", () => {
     expect(res.status).toBe(200);
     expect(body.campaign.name).toBe("Updated Name");
   });
+
+  it("updates campaign rules", async () => {
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
+
+    const update = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: {
+                id: "camp-1",
+                campaign_rules: ["Always mention the free consultation"],
+              },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    });
+    mockFrom.mockReturnValue({ update });
+
+    const { PATCH } = await import("@/app/api/campaigns/[id]/route");
+    const req = new Request("http://localhost/api/campaigns/camp-1", {
+      method: "PATCH",
+      body: JSON.stringify({
+        campaign_rules: ["Always mention the free consultation"],
+      }),
+    });
+    const res = await PATCH(req, { params });
+
+    expect(res.status).toBe(200);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaign_rules: ["Always mention the free consultation"],
+      })
+    );
+  });
 });
 
 describe("DELETE /api/campaigns/[id]", () => {

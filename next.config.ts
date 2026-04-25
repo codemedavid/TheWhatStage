@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Allow tenant subdomains in local dev
-  allowedDevOrigins: ["*.lvh.me"],
+  // Allow base domain and tenant subdomains in local dev
+  allowedDevOrigins: ["lvh.me", "*.lvh.me", "*.ngrok-free.dev"],
 
   // pdf-parse uses DOMMatrix (browser API) and must not be bundled
   serverExternalPackages: ["pdf-parse"],

@@ -22,6 +22,19 @@ describe("classifyQuery", () => {
     expect(classifyQuery("Hello")).toBe("both");
   });
 
+  it("routes vague high-intent buying signals to both knowledge stores", () => {
+    expect(classifyQuery("Interested")).toBe("both");
+    expect(classifyQuery("Pa info")).toBe("both");
+    expect(classifyQuery("Send details")).toBe("both");
+    expect(classifyQuery("HM?")).toBe("both");
+    expect(classifyQuery("Available?")).toBe("both");
+  });
+
+  it("keeps availability and price questions product-oriented when product terms are clear", () => {
+    expect(classifyQuery("Available pa yung blue widget?")).toBe("product");
+    expect(classifyQuery("How much is the blue widget?")).toBe("product");
+  });
+
   it("is case-insensitive", () => {
     expect(classifyQuery("WHAT IS THE PRICE")).toBe("product");
     expect(classifyQuery("WHERE ARE YOU LOCATED")).toBe("general");

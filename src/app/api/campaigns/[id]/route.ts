@@ -12,6 +12,7 @@ const updateSchema = z.object({
   status: z.enum(["draft", "active", "paused", "archived"]).optional(),
   follow_up_delay_minutes: z.number().int().min(15).max(1440).optional(),
   follow_up_message: z.string().max(500).nullable().optional(),
+  campaign_rules: z.array(z.string().min(1).max(300)).max(10).optional(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };

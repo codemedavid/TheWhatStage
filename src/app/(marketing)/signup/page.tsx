@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { redirectAfterAuth } from "@/lib/auth/redirect";
-import { TENANT_COOKIE_NAME, tenantCookieOptions } from "@/lib/auth/tenant-cookie";
+import { serializeTenantCookie } from "@/lib/auth/tenant-cookie";
 
 /* ─── How it works — replaces emoji feature cards ──────────────── */
 const STEPS = [
@@ -164,8 +164,7 @@ export default function SignupPage() {
       const { path, slug } = await redirectAfterAuth(accessToken);
 
       if (slug) {
-        const opts = tenantCookieOptions();
-        document.cookie = `${TENANT_COOKIE_NAME}=${slug}; path=${opts.path}; domain=${opts.domain}; samesite=${opts.sameSite}; max-age=${opts.maxAge}`;
+        document.cookie = serializeTenantCookie(slug);
       }
 
       window.location.href = path;

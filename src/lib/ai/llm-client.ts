@@ -3,13 +3,28 @@ const HF_API_URL =
 
 // Primary model + fallbacks for resilience when a provider is down
 const MODELS = [
-  "google/gemma-3-27b-it",
-  "mistralai/Mistral-7B-Instruct-v0.3",
+  "deepseek-ai/DeepSeek-V4-Pro:together",
+  "meta-llama/Llama-3.3-70B-Instruct",
+  "Qwen/Qwen2.5-72B-Instruct",
 ] as const;
 
-const FETCH_TIMEOUT_MS = 30_000;
+const FETCH_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 2;
 const RETRY_BACKOFF_MS = 1_000;
+
+function isTransientFetchError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (err.name === "AbortError") return true;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("fetch failed") ||
+    msg.includes("network") ||
+    msg.includes("econnreset") ||
+    msg.includes("etimedout") ||
+    msg.includes("socket hang up") ||
+    msg.includes("und_err")
+  );
+}
 
 export interface LLMConfig {
   temperature?: number;
@@ -55,15 +70,35 @@ async function callModel(
       bodyPayload.response_format = { type: "json_object" };
     }
 
-    const response = await fetch(HF_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(bodyPayload),
-      signal: controller.signal,
-    });
+    let response: Response;
+    try {
+      response = await fetch(HF_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bodyPayload),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (isTransientFetchError(err) && retries > 0) {
+        console.warn(
+          `[llm-client] Transient fetch error on ${model} (${(err as Error).name}: ${(err as Error).message}), retrying...`
+        );
+        await new Promise((r) =>
+          setTimeout(r, RETRY_BACKOFF_MS * (MAX_RETRIES - retries + 1))
+        );
+        return callModel(model, systemPrompt, userMessage, config, apiKey, retries - 1);
+      }
+      // Tag aborts/network failures so the outer loop falls through to next model
+      if (isTransientFetchError(err)) {
+        throw new Error(
+          `HuggingFace fetch failed for ${model}: ${(err as Error).name}: ${(err as Error).message}`
+        );
+      }
+      throw err;
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -82,7 +117,8 @@ async function callModel(
     const data = await response.json();
     const choice = data.choices?.[0];
     if (!choice?.message?.content) {
-      throw new Error("HuggingFace returned empty response");
+      // Reasoning models may exhaust max_tokens on thinking, returning empty content
+      throw new Error("HuggingFace returned empty response (not supported)");
     }
 
     return {
@@ -113,7 +149,10 @@ export async function generateResponse(
         lastError.message.includes("(400)") ||
         lastError.message.includes("(404)") ||
         lastError.message.includes("(422)") ||
-        lastError.message.includes("not supported");
+        lastError.message.includes("(503)") ||
+        lastError.message.includes("(429)") ||
+        lastError.message.includes("not supported") ||
+        lastError.message.includes("fetch failed for");
       // Only fall through to next model if the model itself is the problem
       if (!isModelUnavailable) throw lastError;
       console.warn(`[llm-client] Model ${model} unavailable, trying fallback...`);

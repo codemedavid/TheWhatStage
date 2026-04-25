@@ -148,7 +148,7 @@ async function generateCampaign(
 ): Promise<{ campaign: GeneratedCampaign; phaseOutlines: GeneratedPhaseOutline[] }> {
   const { systemPrompt, userMessage } = buildCampaignPrompt(ctx);
   const response = await generateResponse(systemPrompt, userMessage, {
-    maxTokens: 512,
+    maxTokens: 1024,
     responseFormat: "json_object",
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, FlaskConical } from "lucide-react";
+import { Plus, FlaskConical, Sparkles } from "lucide-react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
@@ -32,6 +32,12 @@ export default function CampaignsClient() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/app/campaigns/ai-builder">
+            <Button variant="secondary">
+              <Sparkles className="h-4 w-4" />
+              Build with AI
+            </Button>
+          </Link>
           <Link href="/app/campaigns/experiments">
             <Button variant="secondary">
               <FlaskConical className="h-4 w-4" />

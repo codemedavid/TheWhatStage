@@ -41,7 +41,7 @@ describe("generateResponse", () => {
       { role: "system", content: "You are helpful." },
       { role: "user", content: "Hi there" },
     ]);
-    expect(body.model).toBe("Qwen/Qwen3-8B-Instruct");
+    expect(body.model).toBe("deepseek-ai/DeepSeek-V4-Pro:together");
     expect(body.temperature).toBe(0.4);
     expect(body.max_tokens).toBe(512);
     expect(body.response_format).toEqual({ type: "json_object" });
@@ -94,7 +94,7 @@ describe("generateResponse", () => {
     });
 
     await expect(generateResponse("System", "User")).rejects.toThrow(
-      "HuggingFace text generation API error (500)"
+      "HuggingFace API error (500)"
     );
   });
 
@@ -133,7 +133,7 @@ describe("generateResponse", () => {
     });
 
     await expect(generateResponse("System", "User")).rejects.toThrow(
-      "HuggingFace text generation API error (503)"
+      "HuggingFace API error (503)"
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(3); // initial + 2 retries

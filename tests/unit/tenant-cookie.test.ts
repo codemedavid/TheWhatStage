@@ -29,4 +29,14 @@ describe("tenant-cookie", () => {
       });
     });
   });
+
+  describe("serializeTenantCookie", () => {
+    it("serializes the tenant slug cookie for document.cookie", async () => {
+      const { serializeTenantCookie } = await import("@/lib/auth/tenant-cookie");
+
+      expect(serializeTenantCookie("acme")).toBe(
+        "ws-tenant-slug=acme; path=/; domain=.lvh.me; samesite=lax; max-age=2592000"
+      );
+    });
+  });
 });

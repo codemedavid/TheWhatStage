@@ -7,7 +7,7 @@ const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   max_messages: z.number().int().min(1).max(50).optional(),
   system_prompt: z.string().min(1).max(5000).optional(),
-  tone: z.string().max(200).optional(),
+  tone: z.string().max(200).nullable().optional(),
   goals: z.string().max(2000).nullable().optional(),
   transition_hint: z.string().max(1000).nullable().optional(),
   action_button_ids: z.array(z.string().uuid()).optional(),

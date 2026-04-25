@@ -26,7 +26,8 @@
   - Replace with v2 tests covering plan generation (with question/plan actions), phase generation, phase editing (update/add/regenerate actions), and JSON repair.
 
 - Modify `src/lib/ai/campaign-builder-store.ts`
-  - Replace with v2: `saveCampaignPlan`, `loadCampaignForPhaseGen`, `saveGeneratedPhases`, `loadCampaignForPhaseEdit`, `applyPhaseEdit`.
+  - Replace with v2: `saveCampaignPlan`, `loadCampaignPlanForRevision`, `loadCampaignForPhaseGen`, `saveGeneratedPhases`, `loadCampaignForPhaseEdit`, `applyPhaseEdit`.
+  - Adds one shared draft editability guard so plan updates, phase generation, and phase edits cannot overwrite primary campaigns or campaigns with lead activity.
   - Keeps `loadBuilderTenantContext` unchanged.
 
 - Modify `tests/unit/campaign-builder-store.test.ts`
@@ -39,7 +40,7 @@
   - Replaced by `/phase-edit`.
 
 - Create `src/app/api/campaigns/ai-builder/plan/route.ts`
-  - Authenticates, validates, calls `generatePlan`, persists via `saveCampaignPlan`.
+  - Authenticates, validates, loads existing plan/rules when revising, calls `generatePlan`, persists via `saveCampaignPlan`.
 
 - Create `src/app/api/campaigns/ai-builder/phases/route.ts`
   - Authenticates, loads plan, calls `generatePhasesFromPlan`, persists via `saveGeneratedPhases`.
@@ -78,6 +79,19 @@
 - Modify `src/components/dashboard/campaigns/CampaignForm.tsx`
   - Add campaign rules editor section.
 
+- Modify `src/hooks/useCampaigns.ts`
+  - Add `campaign_plan` and `campaign_rules` to the shared `Campaign` interface used by campaign settings.
+
+---
+
+## Strengthened Implementation Approach
+
+- Treat Tasks 2-4 as one tightly coupled switch-over unless compatibility exports are kept temporarily. `campaign-builder.ts`, `campaign-builder-store.ts`, and the old `/generate` + `/revise` routes depend on each other today; do not make a commit that leaves existing imports broken.
+- Preserve the current draft safety behavior from `replaceDraftCampaign`: generated phase replacement and phase edits must only run on non-primary `draft` campaigns with no `lead_campaign_assignments` or `campaign_conversions`.
+- Keep `/plan` scoped to planning and pre-phase plan revisions. Once phases exist, the builder chat should use `/phase-edit`; strategic changes at that point should return `regenerate` and optional `rulesUpdate` so plan, phases, and rules do not drift.
+- Make campaign rules an end-to-end contract: database type, API validation, form payload, conversation-engine campaign select, prompt builder layer, and tests all need to agree on `campaign_rules` / `campaignRules`.
+- Prefer persisted state over UI flags. The UI should derive `no_plan`, `has_plan`, and `has_phases` from `plan` and `phases.length`, not from separately maintained booleans.
+
 ---
 
 ### Task 1: Database Migration And Types
@@ -101,25 +115,26 @@ COMMENT ON COLUMN campaigns.campaign_rules IS 'Plain-language rules applied acro
 
 - [ ] **Step 2: Update TypeScript database types**
 
-In `src/types/database.ts`, find the campaigns table Row type and add the two new fields after `follow_up_message`:
+In `src/types/database.ts`, add this reusable type near the top, after `type TableRow<T>`:
 
 ```ts
-campaign_plan: {
+export type CampaignPlanJson = {
   goal_summary: string;
   selling_approach: string;
   buyer_context: string;
   key_behaviors: string[];
   phase_outline: { name: string; purpose: string }[];
-} | null;
+};
+```
+
+Then find the `campaigns` table row type and add the two new fields after `follow_up_message`:
+
+```ts
+campaign_plan: CampaignPlanJson | null;
 campaign_rules: string[];
 ```
 
-Add the same fields to the Insert and Update types (both optional):
-
-```ts
-campaign_plan?: { ... } | null;
-campaign_rules?: string[];
-```
+This repo's `TableRow<T>` already defines `Insert` and `Update` as `Partial<T>`, so adding the fields to the row type automatically makes them optional in inserts and updates.
 
 - [ ] **Step 3: Apply the migration**
 
@@ -502,7 +517,9 @@ Expected: FAIL — `generatePlan` not found in exports.
 
 - [ ] **Step 3: Implement campaign builder v2**
 
-Replace `src/lib/ai/campaign-builder.ts` entirely:
+Replace `src/lib/ai/campaign-builder.ts` as part of the Task 2-4 switch-over. If stopping after this task, keep temporary compatibility exports for `generateCampaignDraft` and `reviseCampaignDraft`; otherwise the old API routes will import missing symbols until Task 4 deletes them.
+
+Use this v2 implementation:
 
 ```ts
 import { z } from "zod";
@@ -686,11 +703,12 @@ export async function generatePlan(input: {
   message: string;
   history?: BuilderChatMessage[];
   existingPlan?: CampaignPlan | null;
+  existingRules?: string[];
 }): Promise<PlanResponse> {
   const systemPrompt = buildPlanSystemPrompt(input.context);
   const parts = [
     input.existingPlan
-      ? `Current campaign plan:\n${JSON.stringify(input.existingPlan, null, 2)}\n\nRevise the plan using the tenant's latest direction.`
+      ? `Current campaign plan:\n${JSON.stringify(input.existingPlan, null, 2)}\n\nCurrent campaign rules:\n${(input.existingRules ?? []).map((rule) => `- ${rule}`).join("\n") || "No campaign rules yet."}\n\nRevise the plan using the tenant's latest direction.`
       : "Create a new campaign plan from this tenant direction.",
     "",
     `Tenant direction: ${input.message}`,
@@ -885,12 +903,19 @@ npm test -- tests/unit/campaign-builder.test.ts
 
 Expected: all 11 tests pass.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit or continue the switch-over**
 
 ```bash
 git add src/lib/ai/campaign-builder.ts tests/unit/campaign-builder.test.ts
+```
+
+If you kept compatibility exports, commit now:
+
+```bash
 git commit -m "feat: campaign builder v2 core with plan, phase gen, and phase edit"
 ```
+
+If you replaced the file exactly as shown and removed the legacy exports, do not commit yet. Continue through Task 4 and make one switch-over commit after the new API routes are in place and the old routes are removed.
 
 ---
 
@@ -909,6 +934,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CampaignPlan, GeneratedCampaignPhase, PhaseEditResponse } from "@/lib/ai/campaign-builder";
 import {
   loadBuilderTenantContext,
+  loadCampaignPlanForRevision,
   saveCampaignPlan,
   loadCampaignForPhaseGen,
   saveGeneratedPhases,
@@ -933,6 +959,26 @@ const phases: GeneratedCampaignPhase[] = [
   { name: "Trust", order_index: 1, max_messages: 4, system_prompt: "Build.", tone: "helpful", goals: "Build trust.", transition_hint: "Trust built." },
   { name: "Qualify", order_index: 2, max_messages: 3, system_prompt: "Guide.", tone: "calm", goals: "Qualify.", transition_hint: "Final." },
 ];
+
+function campaignSelect(data: Record<string, unknown>) {
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data, error: null }),
+        }),
+      }),
+    }),
+  };
+}
+
+function zeroActivityCount() {
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ count: 0, error: null }),
+    }),
+  };
+}
 
 describe("campaign-builder-store v2", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -1020,7 +1066,15 @@ describe("campaign-builder-store v2", () => {
       }),
     });
     const service = {
-      from: vi.fn(() => ({ update: updateCampaign })),
+      from: vi.fn((table: string) => {
+        if (table === "campaigns") {
+          return {
+            ...campaignSelect({ id: "camp-1", status: "draft", is_primary: false }),
+            update: updateCampaign,
+          };
+        }
+        return zeroActivityCount();
+      }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 
@@ -1039,23 +1093,58 @@ describe("campaign-builder-store v2", () => {
     );
   });
 
-  it("loads campaign plan and rules for phase generation", async () => {
+  it("loads an existing plan and rules for plan revision", async () => {
     const service = {
-      from: vi.fn(() => ({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: {
-                  id: "camp-1", campaign_plan: plan, campaign_rules: ["Rule"],
-                  status: "draft", is_primary: false,
-                },
-                error: null,
+      from: vi.fn((table: string) => {
+        if (table === "campaigns") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: "camp-1",
+                      status: "draft",
+                      is_primary: false,
+                      campaign_plan: plan,
+                      campaign_rules: ["Rule 1"],
+                    },
+                    error: null,
+                  }),
+                }),
               }),
             }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ count: 0, error: null }),
           }),
-        }),
-      })),
+        };
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const result = await loadCampaignPlanForRevision(service, "t-1", "camp-1");
+
+    expect(result.plan).toEqual(plan);
+    expect(result.rules).toEqual(["Rule 1"]);
+  });
+
+  it("loads campaign plan and rules for phase generation", async () => {
+    const service = {
+      from: vi.fn((table: string) => {
+        if (table === "campaigns") {
+          return campaignSelect({
+            id: "camp-1",
+            campaign_plan: plan,
+            campaign_rules: ["Rule"],
+            status: "draft",
+            is_primary: false,
+          });
+        }
+        return zeroActivityCount();
+      }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 
@@ -1094,6 +1183,12 @@ describe("campaign-builder-store v2", () => {
 
     const service = {
       from: vi.fn((table: string) => {
+        if (table === "campaigns") {
+          return campaignSelect({ id: "camp-1", status: "draft", is_primary: false });
+        }
+        if (table === "lead_campaign_assignments" || table === "campaign_conversions") {
+          return zeroActivityCount();
+        }
         if (table === "campaign_phases") {
           return { delete: deleteFn, insert: insertFn };
         }
@@ -1128,7 +1223,15 @@ describe("campaign-builder-store v2", () => {
     const service = {
       from: vi.fn((table: string) => {
         if (table === "campaign_phases") return { delete: deleteFn, insert: insertFn };
-        if (table === "campaigns") return { update: updateRules };
+        if (table === "campaigns") {
+          return {
+            ...campaignSelect({ id: "camp-1", status: "draft", is_primary: false }),
+            update: updateRules,
+          };
+        }
+        if (table === "lead_campaign_assignments" || table === "campaign_conversions") {
+          return zeroActivityCount();
+        }
         throw new Error(`Unexpected table ${table}`);
       }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1177,6 +1280,47 @@ import type {
 
 type ServiceClient = SupabaseClient<Database>;
 
+async function countCampaignRows(
+  service: ServiceClient,
+  table: "lead_campaign_assignments" | "campaign_conversions",
+  campaignId: string
+) {
+  const { count, error } = await service
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId);
+
+  if (error) throw new Error("Failed to check campaign activity");
+  return count ?? 0;
+}
+
+async function assertDraftCampaignEditable(
+  service: ServiceClient,
+  tenantId: string,
+  campaignId: string
+) {
+  const { data, error } = await service
+    .from("campaigns")
+    .select("id, status, is_primary")
+    .eq("id", campaignId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !data) throw new Error("Campaign not found");
+  if (data.is_primary || data.status !== "draft") {
+    throw new Error("Only non-primary draft campaigns can be edited");
+  }
+
+  const [assignments, conversions] = await Promise.all([
+    countCampaignRows(service, "lead_campaign_assignments", campaignId),
+    countCampaignRows(service, "campaign_conversions", campaignId),
+  ]);
+
+  if (assignments > 0 || conversions > 0) {
+    throw new Error("Draft campaign already has lead activity");
+  }
+}
+
 export async function loadBuilderTenantContext(
   service: ServiceClient,
   tenantId: string
@@ -1210,6 +1354,28 @@ export async function loadBuilderTenantContext(
 
 // --- Plan persistence ---
 
+export async function loadCampaignPlanForRevision(
+  service: ServiceClient,
+  tenantId: string,
+  campaignId: string
+): Promise<{ plan: CampaignPlan | null; rules: string[] }> {
+  await assertDraftCampaignEditable(service, tenantId, campaignId);
+
+  const { data, error } = await service
+    .from("campaigns")
+    .select("campaign_plan, campaign_rules")
+    .eq("id", campaignId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !data) throw new Error("Campaign not found");
+
+  return {
+    plan: (data.campaign_plan as CampaignPlan | null) ?? null,
+    rules: (data.campaign_rules ?? []) as string[],
+  };
+}
+
 export async function saveCampaignPlan(
   service: ServiceClient,
   tenantId: string,
@@ -1223,6 +1389,8 @@ export async function saveCampaignPlan(
   }
 ) {
   if (input.campaignId) {
+    await assertDraftCampaignEditable(service, tenantId, input.campaignId);
+
     const { data, error } = await service
       .from("campaigns")
       .update({
@@ -1278,6 +1446,7 @@ export async function loadCampaignForPhaseGen(
   if (error || !data) throw new Error("Campaign not found");
   if (data.is_primary) throw new Error("Cannot generate phases for primary campaign");
   if (!data.campaign_plan) throw new Error("No campaign plan found");
+  await assertDraftCampaignEditable(service, tenantId, campaignId);
 
   return {
     plan: data.campaign_plan as CampaignPlan,
@@ -1307,6 +1476,8 @@ export async function saveGeneratedPhases(
   campaignId: string,
   phases: GeneratedCampaignPhase[]
 ) {
+  await assertDraftCampaignEditable(service, tenantId, campaignId);
+
   const { error: deleteError } = await service
     .from("campaign_phases")
     .delete()
@@ -1359,6 +1530,8 @@ export async function applyPhaseEdit(
   campaignId: string,
   editResult: PhaseEditResponse
 ) {
+  await assertDraftCampaignEditable(service, tenantId, campaignId);
+
   const { error: deleteError } = await service
     .from("campaign_phases")
     .delete()
@@ -1391,12 +1564,19 @@ export async function applyPhaseEdit(
 npm test -- tests/unit/campaign-builder-store.test.ts
 ```
 
-Expected: all 8 tests pass.
+Expected: all 9 tests pass.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit or continue the switch-over**
 
 ```bash
 git add src/lib/ai/campaign-builder-store.ts tests/unit/campaign-builder-store.test.ts
+```
+
+If the old `/generate` and `/revise` routes still exist and you removed `createDraftCampaign`, `loadDraftSnapshot`, or `replaceDraftCampaign`, do not commit yet. Continue through Task 4 and make the API switch-over commit there.
+
+If you kept compatibility exports, commit now:
+
+```bash
 git commit -m "feat: campaign builder store v2 with plan and phase edit persistence"
 ```
 
@@ -1427,6 +1607,7 @@ vi.mock("@/lib/supabase/service", () => ({
 }));
 vi.mock("@/lib/ai/campaign-builder-store", () => ({
   loadBuilderTenantContext: vi.fn(),
+  loadCampaignPlanForRevision: vi.fn(),
   saveCampaignPlan: vi.fn(),
   loadCampaignForPhaseGen: vi.fn(),
   saveGeneratedPhases: vi.fn(),
@@ -1441,6 +1622,7 @@ vi.mock("@/lib/ai/campaign-builder", () => ({
 
 import {
   loadBuilderTenantContext,
+  loadCampaignPlanForRevision,
   saveCampaignPlan,
   loadCampaignForPhaseGen,
   saveGeneratedPhases,
@@ -1451,6 +1633,7 @@ import { generatePlan, generatePhasesFromPlan, editPhases } from "@/lib/ai/campa
 
 const mockSession = vi.mocked(resolveSession);
 const mockLoadContext = vi.mocked(loadBuilderTenantContext);
+const mockLoadPlanRevision = vi.mocked(loadCampaignPlanForRevision);
 const mockSavePlan = vi.mocked(saveCampaignPlan);
 const mockLoadPhaseGen = vi.mocked(loadCampaignForPhaseGen);
 const mockSavePhases = vi.mocked(saveGeneratedPhases);
@@ -1530,6 +1713,31 @@ describe("POST /api/campaigns/ai-builder/plan", () => {
     expect(body.question).toContain("objections");
     expect(mockSavePlan).not.toHaveBeenCalled();
   });
+
+  it("passes an existing plan when revising a draft campaign", async () => {
+    mockSession.mockResolvedValue({ userId: "u-1", tenantId: "t-1" });
+    mockLoadContext.mockResolvedValue(context);
+    mockLoadPlanRevision.mockResolvedValue({ plan, rules: ["Rule 1"] });
+    mockGeneratePlan.mockResolvedValue({
+      action: "plan", campaign_name: "Trust First v2", campaign_description: "Desc.",
+      campaign_goal: "form_submit", plan, campaign_rules: ["Rule 1", "Rule 2"],
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockSavePlan.mockResolvedValue({ id: "camp-1", name: "Trust First v2", status: "draft" } as any);
+
+    const { POST } = await import("@/app/api/campaigns/ai-builder/plan/route");
+    const res = await POST(new Request("http://localhost/api/campaigns/ai-builder/plan", {
+      method: "POST", body: JSON.stringify({ campaignId: "camp-1", message: "Make it softer." }),
+    }));
+
+    expect(res.status).toBe(201);
+    expect(mockGeneratePlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        existingPlan: plan,
+        existingRules: ["Rule 1"],
+      })
+    );
+  });
 });
 
 describe("POST /api/campaigns/ai-builder/phases", () => {
@@ -1605,7 +1813,11 @@ import { z } from "zod";
 import { resolveSession } from "@/lib/auth/session";
 import { createServiceClient } from "@/lib/supabase/service";
 import { generatePlan } from "@/lib/ai/campaign-builder";
-import { loadBuilderTenantContext, saveCampaignPlan } from "@/lib/ai/campaign-builder-store";
+import {
+  loadBuilderTenantContext,
+  loadCampaignPlanForRevision,
+  saveCampaignPlan,
+} from "@/lib/ai/campaign-builder-store";
 
 const chatMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -1630,12 +1842,19 @@ export async function POST(request: Request) {
 
   try {
     const service = createServiceClient();
-    const context = await loadBuilderTenantContext(service, session.tenantId);
+    const [context, existing] = await Promise.all([
+      loadBuilderTenantContext(service, session.tenantId),
+      parsed.data.campaignId
+        ? loadCampaignPlanForRevision(service, session.tenantId, parsed.data.campaignId)
+        : Promise.resolve(null),
+    ]);
 
     const result = await generatePlan({
       context,
       message: parsed.data.message,
       history: parsed.data.history,
+      existingPlan: existing?.plan ?? null,
+      existingRules: existing?.rules ?? [],
     });
 
     if (result.action === "question") {
@@ -1663,7 +1882,8 @@ export async function POST(request: Request) {
     }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to generate plan";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message.includes("lead activity") || message.includes("Only non-primary") ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 ```
@@ -1711,7 +1931,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ phases }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to generate phases";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message.includes("lead activity") || message.includes("Only non-primary") ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 ```
@@ -1776,7 +1997,8 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to edit phases";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message.includes("lead activity") || message.includes("Only non-primary") ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 ```
@@ -1787,7 +2009,7 @@ export async function POST(request: Request) {
 npm test -- tests/unit/campaign-builder-v2-api.test.ts
 ```
 
-Expected: all 5 tests pass.
+Expected: all 6 tests pass.
 
 - [ ] **Step 8: Commit**
 
@@ -1811,19 +2033,21 @@ Add this test to the existing `tests/unit/prompt-builder.test.ts` describe block
 
 ```ts
 it("includes campaign rules as Layer 2.5 when provided", async () => {
-  // Use the same test setup pattern as existing tests in this file.
-  // Set campaign context with campaignRules:
-  const ctx = {
-    ...baseCtx,
-    campaign: {
-      name: "Trust First",
-      description: "Trust-first campaign.",
-      goal: "form_submit",
-      campaignRules: ["Always mention the free consultation", "Never discuss pricing until phase 2"],
-    },
-  };
+  setupMocks();
 
-  const prompt = await buildSystemPrompt(ctx);
+  const prompt = await buildSystemPrompt(
+    makeContext({
+      campaign: {
+        name: "Trust First",
+        description: "Trust-first campaign.",
+        goal: "form_submit",
+        campaignRules: [
+          "Always mention the free consultation",
+          "Never discuss pricing until phase 2",
+        ],
+      },
+    })
+  );
 
   expect(prompt).toContain("--- CAMPAIGN RULES ---");
   expect(prompt).toContain("Always mention the free consultation");
@@ -1831,17 +2055,18 @@ it("includes campaign rules as Layer 2.5 when provided", async () => {
 });
 
 it("skips campaign rules layer when rules are empty", async () => {
-  const ctx = {
-    ...baseCtx,
-    campaign: {
-      name: "Trust First",
-      description: "Trust-first campaign.",
-      goal: "form_submit",
-      campaignRules: [],
-    },
-  };
+  setupMocks();
 
-  const prompt = await buildSystemPrompt(ctx);
+  const prompt = await buildSystemPrompt(
+    makeContext({
+      campaign: {
+        name: "Trust First",
+        description: "Trust-first campaign.",
+        goal: "form_submit",
+        campaignRules: [],
+      },
+    })
+  );
 
   expect(prompt).not.toContain("--- CAMPAIGN RULES ---");
 });
@@ -1921,11 +2146,64 @@ In `src/app/api/campaigns/[id]/route.ts`, find the Zod schema for the PATCH hand
 campaign_rules: z.array(z.string().min(1).max(300)).max(10).optional(),
 ```
 
-- [ ] **Step 2: Verify the update payload passes `campaign_rules` through**
+- [ ] **Step 2: Add a campaign rules PATCH test**
 
-Check that the PATCH handler spreads validated fields into the Supabase update call. Since it already does this pattern, `campaign_rules` should flow through automatically. If it constructs the update object field by field, add `campaign_rules: parsed.data.campaign_rules` to the update object.
+Add this test inside the `PATCH /api/campaigns/[id]` describe block in `tests/unit/campaigns-detail-api.test.ts`:
 
-- [ ] **Step 3: Run existing campaign PATCH tests**
+```ts
+it("updates campaign rules", async () => {
+  mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
+
+  const update = vi.fn().mockReturnValue({
+    eq: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "camp-1",
+              campaign_rules: ["Always mention the free consultation"],
+            },
+            error: null,
+          }),
+        }),
+      }),
+    }),
+  });
+  mockFrom.mockReturnValue({ update });
+
+  const { PATCH } = await import("@/app/api/campaigns/[id]/route");
+  const req = new Request("http://localhost/api/campaigns/camp-1", {
+    method: "PATCH",
+    body: JSON.stringify({
+      campaign_rules: ["Always mention the free consultation"],
+    }),
+  });
+  const res = await PATCH(req, { params });
+
+  expect(res.status).toBe(200);
+  expect(update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      campaign_rules: ["Always mention the free consultation"],
+    })
+  );
+});
+```
+
+- [ ] **Step 3: Verify the update payload passes `campaign_rules` through**
+
+The current PATCH handler spreads validated fields into the Supabase update call:
+
+```ts
+.update({ ...parsed.data, updated_at: new Date().toISOString() })
+```
+
+Keep that pattern. If the handler is later changed to construct the update object field by field, include this field explicitly:
+
+```ts
+campaign_rules: parsed.data.campaign_rules,
+```
+
+- [ ] **Step 4: Run existing campaign PATCH tests**
 
 ```bash
 npm test -- tests/unit/campaigns-detail-api.test.ts
@@ -1933,10 +2211,10 @@ npm test -- tests/unit/campaigns-detail-api.test.ts
 
 Expected: existing tests still pass.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add 'src/app/api/campaigns/[id]/route.ts'
+git add 'src/app/api/campaigns/[id]/route.ts' tests/unit/campaigns-detail-api.test.ts
 git commit -m "feat: support campaign_rules in campaign patch api"
 ```
 
@@ -2635,8 +2913,28 @@ git commit -m "feat: rewrite builder client for plan-first flow"
 
 **Files:**
 - Modify: `src/components/dashboard/campaigns/CampaignForm.tsx`
+- Modify: `src/hooks/useCampaigns.ts`
 
 - [ ] **Step 1: Add campaign rules section to CampaignForm**
+
+First update `src/hooks/useCampaigns.ts` so `CampaignForm` can read and save rules without type casts. Add this exported type near the `Campaign` interface:
+
+```ts
+export interface CampaignPlanJson {
+  goal_summary: string;
+  selling_approach: string;
+  buyer_context: string;
+  key_behaviors: string[];
+  phase_outline: { name: string; purpose: string }[];
+}
+```
+
+Then add these fields to `Campaign` after `follow_up_message`:
+
+```ts
+campaign_plan: CampaignPlanJson | null;
+campaign_rules: string[];
+```
 
 In `src/components/dashboard/campaigns/CampaignForm.tsx`, after the follow-up message section and before the save button:
 
@@ -2683,7 +2981,11 @@ In `src/components/dashboard/campaigns/CampaignForm.tsx`, after the follow-up me
 </div>
 ```
 
-3. Include `campaign_rules: localRules.filter((r) => r.trim())` in the save payload sent to `PATCH /api/campaigns/{id}`.
+3. Include trimmed rules in the save payload sent to `PATCH /api/campaigns/{id}`:
+
+```ts
+campaign_rules: localRules.map((rule) => rule.trim()).filter(Boolean),
+```
 
 - [ ] **Step 2: Run the dev server and manually verify**
 
@@ -2699,7 +3001,7 @@ Navigate to `/app/campaigns/{id}` → Settings tab. Verify:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/components/dashboard/campaigns/CampaignForm.tsx
+git add src/components/dashboard/campaigns/CampaignForm.tsx src/hooks/useCampaigns.ts
 git commit -m "feat: add campaign rules editor to campaign settings"
 ```
 
@@ -2712,7 +3014,7 @@ git commit -m "feat: add campaign rules editor to campaign settings"
 - [ ] **Step 1: Run all targeted tests**
 
 ```bash
-npm test -- tests/unit/campaign-builder.test.ts tests/unit/campaign-builder-store.test.ts tests/unit/campaign-builder-v2-api.test.ts tests/unit/campaign-test-against-primary-api.test.ts tests/unit/ai-campaign-builder-client.test.tsx tests/unit/prompt-builder.test.ts
+npm test -- tests/unit/campaign-builder.test.ts tests/unit/campaign-builder-store.test.ts tests/unit/campaign-builder-v2-api.test.ts tests/unit/campaigns-detail-api.test.ts tests/unit/campaign-test-against-primary-api.test.ts tests/unit/ai-campaign-builder-client.test.tsx tests/unit/prompt-builder.test.ts tests/unit/conversation-engine.test.ts tests/unit/conversation-engine-images.test.ts tests/unit/test-chat-api.test.ts
 ```
 
 Expected: all tests pass.

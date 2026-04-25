@@ -39,7 +39,7 @@ describe("buildPhasePromptPrompt", () => {
       tone: "friendly",
     };
     const { systemPrompt, userMessage } = buildPhasePromptPrompt(ctx, phase);
-    expect(systemPrompt).toContain("system_prompt");
+    expect(systemPrompt).toContain("briefing");
     expect(userMessage).toContain("Welcome");
     expect(userMessage).toContain("Greet the user");
     expect(userMessage).toContain("Budget range");

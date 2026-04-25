@@ -8,9 +8,24 @@ const GENERAL_TOP_K = 15;
 const PRODUCT_TOP_K = 15;
 const RERANK_CONFIDENCE_THRESHOLD = 0.6;
 
+export interface RetrievalCampaignContext {
+  name: string;
+  description: string | null;
+  goal: string;
+}
+
+export interface RetrievalContext {
+  businessName?: string;
+  businessType?: string;
+  currentPhaseName?: string;
+  recentMessages?: string[];
+  campaign?: RetrievalCampaignContext;
+}
+
 export interface RetrievalParams {
   query: string;
   tenantId: string;
+  context?: RetrievalContext;
 }
 
 export interface RetrievalResult {
@@ -23,11 +38,12 @@ export interface RetrievalResult {
 export async function retrieveKnowledge(
   params: RetrievalParams
 ): Promise<RetrievalResult> {
-  const { query, tenantId } = params;
+  const { query, tenantId, context } = params;
   const queryTarget = classifyQuery(query);
+  const searchQuery = buildSearchQuery(query, context);
 
-  const queryEmbedding = await embedText(query);
-  const pass1Chunks = await searchTargets(queryEmbedding, query, tenantId, queryTarget);
+  const queryEmbedding = await embedText(searchQuery);
+  const pass1Chunks = await searchTargets(queryEmbedding, searchQuery, tenantId, queryTarget);
   const pass1Reranked = await rerankChunks(query, pass1Chunks);
 
   if (pass1Reranked.length > 0 && pass1Reranked[0].similarity >= RERANK_CONFIDENCE_THRESHOLD) {
@@ -35,7 +51,7 @@ export async function retrieveKnowledge(
   }
 
   // Pass 2: LLM-assisted query expansion
-  const expanded = await expandQuery(query);
+  const expanded = await expandQuery(searchQuery);
   if (expanded) {
     const expandedEmbedding = await embedText(expanded);
     const pass2Chunks = await searchTargets(expandedEmbedding, expanded, tenantId, queryTarget);
@@ -56,6 +72,41 @@ export async function retrieveKnowledge(
     queryTarget,
     retrievalPass: 2,
   };
+}
+
+const VAGUE_HIGH_INTENT_PATTERNS = [
+  /\binterested\b/i,
+  /\bdetails?\b/i,
+  /\bpa\s*info\b/i,
+  /\bhm\b/i,
+  /\bhow much\b/i,
+  /\bavailable\b/i,
+  /\bavail\b/i,
+];
+
+function isVagueHighIntentQuery(query: string): boolean {
+  const normalized = query.trim();
+  if (!normalized) return false;
+  if (normalized.length > 80) return false;
+  return VAGUE_HIGH_INTENT_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function buildSearchQuery(query: string, context?: RetrievalContext): string {
+  if (!context || !isVagueHighIntentQuery(query)) return query;
+
+  const lines = [`Lead message: ${query}`];
+
+  if (context.campaign?.name) lines.push(`Campaign: ${context.campaign.name}`);
+  if (context.campaign?.description) lines.push(`Offer: ${context.campaign.description}`);
+  if (context.campaign?.goal) lines.push(`Campaign goal: ${context.campaign.goal}`);
+  if (context.currentPhaseName) lines.push(`Phase: ${context.currentPhaseName}`);
+  if (context.businessName) lines.push(`Business: ${context.businessName}`);
+  if (context.businessType) lines.push(`Business type: ${context.businessType}`);
+  if (context.recentMessages?.length) {
+    lines.push(`Recent context: ${context.recentMessages.slice(-4).join(" | ")}`);
+  }
+
+  return lines.join("\n");
 }
 
 async function searchTargets(

@@ -34,7 +34,7 @@ export default function PhaseForm({ phase, onSave, onDelete }: PhaseFormProps) {
         tone: tone || null,
         goals: goals || null,
         transition_hint: transitionHint || null,
-        action_button_ids: actionButtonIds.length > 0 ? actionButtonIds : null,
+        action_button_ids: actionButtonIds,
         image_attachment_ids: imageAttachmentIds,
       });
     } finally {

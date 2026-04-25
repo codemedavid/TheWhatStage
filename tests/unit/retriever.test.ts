@@ -105,6 +105,44 @@ describe("retrieveKnowledge", () => {
     expect(result.chunks[0].id).toBe("p1");
   });
 
+  it("enriches vague high-intent queries with campaign and phase context before search", async () => {
+    mockClassify.mockReturnValue("both");
+    mockSearch
+      .mockResolvedValueOnce([chunk("g1", 0.8)])
+      .mockResolvedValueOnce([chunk("p1", 0.9)]);
+    mockRerank.mockResolvedValue([chunk("p1", 0.92), chunk("g1", 0.78)]);
+
+    await retrieveKnowledge({
+      query: "Interested",
+      tenantId,
+      context: {
+        businessName: "Acme Corp",
+        currentPhaseName: "Greet",
+        campaign: {
+          name: "Primary Offer",
+          description: "A lead generation service for local businesses.",
+          goal: "form_submit",
+        },
+      },
+    });
+
+    expect(mockEmbed).toHaveBeenCalledWith(
+      expect.stringContaining("Lead message: Interested")
+    );
+    expect(mockEmbed).toHaveBeenCalledWith(
+      expect.stringContaining("Campaign: Primary Offer")
+    );
+    expect(mockEmbed).toHaveBeenCalledWith(
+      expect.stringContaining("Offer: A lead generation service for local businesses.")
+    );
+
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ftsQuery: expect.stringContaining("Primary Offer"),
+      })
+    );
+  });
+
   it("returns no_results when both passes return empty", async () => {
     mockClassify.mockReturnValue("general");
     mockSearch.mockResolvedValue([]);

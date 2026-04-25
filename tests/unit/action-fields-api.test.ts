@@ -134,6 +134,8 @@ describe("PUT /api/action-pages/[id]/fields", () => {
       }),
     });
     const res = await PUT(req, { params });
+    const body = await res.json();
     expect(res.status).toBe(400);
+    expect(body.error).toBe("fields.0.field_type: Invalid enum value. Expected 'text' | 'email' | 'phone' | 'textarea' | 'select' | 'number' | 'radio' | 'checkbox', received 'color'");
   });
 });

@@ -93,6 +93,40 @@ function makeBlankField(orderIndex: number): BuilderField {
   };
 }
 
+function validateFields(fields: BuilderField[]): string | null {
+  for (const [index, field] of fields.entries()) {
+    const label = field.label.trim();
+    const fieldKey = field.field_key.trim();
+
+    if (!label) return `Field ${index + 1} needs a label.`;
+    if (!fieldKey) return `Field ${index + 1} needs a field key.`;
+    if (["select", "radio", "checkbox"].includes(field.field_type)) {
+      const options = field.options.map((option) => option.trim()).filter(Boolean);
+      if (options.length === 0) return `Field ${index + 1} needs at least one option.`;
+    }
+    if (field.lead_mapping?.target === "lead_knowledge" && !field.lead_mapping.key.trim()) {
+      return `Field ${index + 1} needs a lead knowledge key.`;
+    }
+  }
+
+  return null;
+}
+
+function normalizeFields(fields: BuilderField[]): BuilderField[] {
+  return fields.map((field, index) => ({
+    ...field,
+    label: field.label.trim(),
+    field_key: field.field_key.trim(),
+    placeholder: field.placeholder.trim(),
+    options: field.options.map((option) => option.trim()).filter(Boolean),
+    order_index: index,
+    lead_mapping:
+      field.lead_mapping?.target === "lead_knowledge"
+        ? { ...field.lead_mapping, key: field.lead_mapping.key.trim() }
+        : field.lead_mapping,
+  }));
+}
+
 // Convert BuilderField to the shape FormRenderer expects
 function toRendererField(f: BuilderField): ActionPageField {
   return {
@@ -583,9 +617,15 @@ export default function FormBuilder({
 
   async function handleSave() {
     setSaveError(null);
+    const validationError = validateFields(fields);
+    if (validationError) {
+      setSaveError(validationError);
+      return;
+    }
+
     setSaving(true);
     try {
-      await onSave({ title, published, config, fields });
+      await onSave({ title, published, config, fields: normalizeFields(fields) });
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed");
     } finally {

@@ -185,7 +185,14 @@ async function processMessagingEvent(
         }
       } else {
         const errBody = await profileRes.text();
-        console.error(`FB profile API error for psid ${psid}: ${profileRes.status} — ${errBody}`);
+        // Subcode 33 = PSID not resolvable (app lacks Advanced Access for User Profile,
+        // or user is not a tester/admin in dev mode). Expected pre-App-Review.
+        const isExpectedDevModeError = errBody.includes('"error_subcode":33');
+        if (isExpectedDevModeError) {
+          console.warn(`FB profile unavailable for psid ${psid} (subcode 33 — expected without Advanced Access / App Review)`);
+        } else {
+          console.error(`FB profile API error for psid ${psid}: ${profileRes.status} — ${errBody}`);
+        }
       }
     } catch (err) {
       console.error(`FB profile fetch failed for psid ${psid}:`, err);

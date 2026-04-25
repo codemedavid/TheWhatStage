@@ -52,24 +52,27 @@ export function buildPhasePromptPrompt(
   phase: GeneratedPhaseOutline
 ): PromptPair {
   return {
-    systemPrompt: `You are writing the system_prompt for a single phase of a Messenger chatbot funnel. The system_prompt tells the AI chatbot how to behave during this phase. It should:
-- Describe the bot's personality and tone for this phase
-- List what information to gather or actions to take
-- Include the lead qualification criteria so the bot knows what to ask
-- Explain when to transition to the next phase
-- Be written as direct instructions to the bot (e.g., "You are..." / "Your goal is...")
-- Be 200-500 words
+    systemPrompt: `You are writing a short briefing for a Messenger chatbot about what it should focus on during one phase of a conversation. This briefing should:
+- Be casual and direct — like briefing a coworker, not programming a robot
+- Focus on the PURPOSE of this phase (what are you trying to achieve?) not step-by-step instructions
+- Be specific to this business — mention real things about what they sell/offer
+- Stay under 100 words. Short and punchy. No fluff.
+- Do NOT include scripted lines, example messages, or "You are..." roleplay instructions
+- Do NOT describe tone or personality (that's handled separately)
+- Do NOT list steps or bullet points of what to say
 
-Return ONLY the system_prompt text, no JSON wrapping.`,
-    userMessage: `Write the system_prompt for this phase:
+Think of it as: "Here's what you're doing right now and why." That's it.
 
-Phase: ${phase.name} (phase ${phase.order + 1})
-Goals: ${phase.goals}
-Tone: ${phase.tone}
+Return ONLY the briefing text, no JSON wrapping.`,
+    userMessage: `Write the phase briefing:
+
+Phase: ${phase.name} (phase ${phase.order + 1} of the funnel)
+Purpose: ${phase.goals}
+Vibe: ${phase.tone}
 Max messages: ${phase.max_messages}
-Transition: ${phase.transition_hint}
+Move on when: ${phase.transition_hint}
 
-Business context:
+Business:
 ${contextSummary(ctx)}`,
   };
 }

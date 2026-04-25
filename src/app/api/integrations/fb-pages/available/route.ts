@@ -1,12 +1,10 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getTenantContext } from "@/lib/tenant/context";
+import { peekPendingAuth } from "@/lib/fb/pending-auth";
 
-const FB_PAGES_COOKIE = "fb_available_pages";
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -22,33 +20,24 @@ export async function GET() {
     return NextResponse.json({ error: "No tenant context" }, { status: 400 });
   }
 
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(FB_PAGES_COOKIE)?.value;
-
-  if (!raw) {
+  const token = request.nextUrl.searchParams.get("fb_token");
+  if (!token) {
     return NextResponse.json(
       { error: "No available pages. Please authenticate with Facebook first." },
       { status: 404 }
     );
   }
 
-  let cookieData: {
-    pages: Array<{
-      id: string;
-      name: string;
-      access_token: string;
-      category: string;
-      picture: string | null;
-    }>;
-  };
-  try {
-    cookieData = JSON.parse(raw);
-  } catch {
-    return NextResponse.json({ error: "Invalid cookie data" }, { status: 400 });
+  const pending = peekPendingAuth(token);
+  if (!pending) {
+    return NextResponse.json(
+      { error: "Session expired. Please authenticate with Facebook again." },
+      { status: 404 }
+    );
   }
 
   const service = createServiceClient();
-  const pageIds = cookieData.pages.map((p) => p.id);
+  const pageIds = pending.pages.map((p) => p.id);
   const { data: existingPages } = await service
     .from("tenant_pages")
     .select("fb_page_id, tenant_id, status")
@@ -61,7 +50,7 @@ export async function GET() {
     ])
   );
 
-  const pages = cookieData.pages.map((p) => {
+  const pages = pending.pages.map((p) => {
     const existing = existingMap.get(p.id);
     let availability: "available" | "connected_here" | "connected_other" =
       "available";

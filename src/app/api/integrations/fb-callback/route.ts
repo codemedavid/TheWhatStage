@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { cookies } from "next/headers";
 
-const FB_PAGES_COOKIE = "fb_available_pages";
-const COOKIE_MAX_AGE = 600; // 10 minutes
+import { storePendingAuth } from "@/lib/fb/pending-auth";
+
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   if (!code || !stateRaw) {
     return NextResponse.redirect(
-      new URL("/app/integrations?fb_error=missing_params", request.url)
+      new URL("/app/integrations?fb_error=missing_params", BASE_URL)
     );
   }
 
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     state = JSON.parse(stateRaw);
   } catch {
     return NextResponse.redirect(
-      new URL("/app/integrations?fb_error=invalid_state", request.url)
+      new URL("/app/integrations?fb_error=invalid_state", BASE_URL)
     );
   }
 
@@ -29,11 +29,11 @@ export async function GET(request: NextRequest) {
 
   if (!appId || !appSecret) {
     return NextResponse.redirect(
-      new URL("/app/integrations?fb_error=not_configured", request.url)
+      new URL("/app/integrations?fb_error=not_configured", BASE_URL)
     );
   }
 
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/integrations/fb-callback`;
+  const redirectUri = `${BASE_URL}/api/integrations/fb-callback`;
 
   try {
     const tokenRes = await fetch(
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     if (!tokenRes.ok) {
       console.error("FB token exchange failed:", await tokenRes.text());
       return NextResponse.redirect(
-        new URL("/app/integrations?fb_error=token_exchange", request.url)
+        new URL("/app/integrations?fb_error=token_exchange", BASE_URL)
       );
     }
 
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     if (!pagesRes.ok) {
       console.error("FB pages fetch failed:", await pagesRes.text());
       return NextResponse.redirect(
-        new URL("/app/integrations?fb_error=pages_fetch", request.url)
+        new URL("/app/integrations?fb_error=pages_fetch", BASE_URL)
       );
     }
 
@@ -91,11 +91,11 @@ export async function GET(request: NextRequest) {
 
     if (!pages || pages.length === 0) {
       return NextResponse.redirect(
-        new URL("/app/integrations?fb_error=no_pages", request.url)
+        new URL("/app/integrations?fb_error=no_pages", BASE_URL)
       );
     }
 
-    const cookiePayload = JSON.stringify({
+    const token = storePendingAuth({
       userAccessToken,
       pages: pages.map((p: Record<string, unknown>) => ({
         id: p.id,
@@ -106,25 +106,16 @@ export async function GET(request: NextRequest) {
       })),
     });
 
-    const cookieStore = await cookies();
-    cookieStore.set(FB_PAGES_COOKIE, cookiePayload, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: COOKIE_MAX_AGE,
-      path: "/",
-      sameSite: "lax",
-    });
-
     const selectUrl =
       state.source === "onboarding"
-        ? "/onboarding?step=facebook"
-        : "/app/integrations/select-pages";
+        ? `/onboarding?step=facebook&fb_token=${token}`
+        : `/app/integrations/select-pages?fb_token=${token}`;
 
-    return NextResponse.redirect(new URL(selectUrl, request.url));
+    return NextResponse.redirect(new URL(selectUrl, BASE_URL));
   } catch (err) {
     console.error("FB callback error:", err);
     return NextResponse.redirect(
-      new URL("/app/integrations?fb_error=unknown", request.url)
+      new URL("/app/integrations?fb_error=unknown", BASE_URL)
     );
   }
 }

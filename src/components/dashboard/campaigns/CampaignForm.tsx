@@ -31,6 +31,7 @@ export default function CampaignForm({ campaign, onSave }: CampaignFormProps) {
   const [status, setStatus] = useState(campaign.status);
   const [followUpDelay, setFollowUpDelay] = useState(campaign.follow_up_delay_minutes);
   const [followUpMessage, setFollowUpMessage] = useState(campaign.follow_up_message ?? "");
+  const [localRules, setLocalRules] = useState<string[]>(campaign.campaign_rules ?? []);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -43,6 +44,7 @@ export default function CampaignForm({ campaign, onSave }: CampaignFormProps) {
         status: status as Campaign["status"],
         follow_up_delay_minutes: followUpDelay,
         follow_up_message: followUpMessage || null,
+        campaign_rules: localRules.map((rule) => rule.trim()).filter(Boolean),
       });
     } finally {
       setSaving(false);
@@ -112,6 +114,43 @@ export default function CampaignForm({ campaign, onSave }: CampaignFormProps) {
           onChange={(e) => setFollowUpMessage(e.target.value)}
           placeholder="Hey! Just checking in — did you have any other questions?"
         />
+      </div>
+
+      <div>
+        <label className={labelClass}>Campaign Rules</label>
+        <p className="mb-2 text-xs text-[var(--ws-text-muted)]">
+          Rules the bot follows across all phases of this campaign.
+        </p>
+        <div className="space-y-2">
+          {localRules.map((rule, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <input
+                className={inputClass}
+                value={rule}
+                onChange={(e) => {
+                  const updated = [...localRules];
+                  updated[index] = e.target.value;
+                  setLocalRules(updated);
+                }}
+                placeholder="e.g. Always mention the free consultation"
+              />
+              <button
+                type="button"
+                onClick={() => setLocalRules(localRules.filter((_, i) => i !== index))}
+                className="text-sm text-red-500 hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setLocalRules([...localRules, ""])}
+          className="mt-2 text-sm text-[var(--ws-accent)] hover:underline"
+        >
+          + Add Rule
+        </button>
       </div>
 
       {campaign.is_primary && (

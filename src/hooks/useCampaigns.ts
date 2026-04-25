@@ -13,6 +13,14 @@ export interface Campaign {
   status: string;
   follow_up_delay_minutes: number;
   follow_up_message: string | null;
+  campaign_plan: {
+    goal_summary: string;
+    selling_approach: string;
+    buyer_context: string;
+    key_behaviors: string[];
+    phase_outline: { name: string; purpose: string }[];
+  } | null;
+  campaign_rules: string[];
   created_at: string;
   updated_at: string;
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 
@@ -52,6 +52,25 @@ export default function NewCampaignPage() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="text-xl font-semibold text-[var(--ws-text-primary)]">New Campaign</h1>
+      </div>
+
+      <div className="mb-6 rounded-lg border border-[var(--ws-border)] bg-[var(--ws-accent-subtle)] p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-[var(--ws-accent)]" />
+              <h2 className="text-sm font-semibold text-[var(--ws-text-primary)]">
+                Build from a sales motion
+              </h2>
+            </div>
+            <p className="mt-1 text-sm text-[var(--ws-text-muted)]">
+              Describe how the bot should sell and let AI create a draft campaign with phases.
+            </p>
+          </div>
+          <Link href="/app/campaigns/ai-builder">
+            <Button variant="primary">Build with AI</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="max-w-lg space-y-5">

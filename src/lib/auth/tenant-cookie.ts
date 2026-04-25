@@ -15,3 +15,16 @@ export function tenantCookieOptions() {
     maxAge: 60 * 60 * 24 * 30, // 30 days
   };
 }
+
+export function serializeTenantCookie(slug: string): string {
+  const opts = tenantCookieOptions();
+  const parts = [
+    `${TENANT_COOKIE_NAME}=${encodeURIComponent(slug)}`,
+    `path=${opts.path}`,
+    opts.domain ? `domain=${opts.domain}` : null,
+    `samesite=${opts.sameSite}`,
+    `max-age=${opts.maxAge}`,
+  ].filter(Boolean);
+
+  return parts.join("; ");
+}

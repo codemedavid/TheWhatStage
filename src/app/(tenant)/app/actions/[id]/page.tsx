@@ -33,15 +33,21 @@ export default function ActionPageEditor() {
   useEffect(() => {
     if (!id) return;
 
+    let cancelled = false;
+    let fieldsController: AbortController | null = null;
+    let fieldsTimeout: number | undefined;
+
     async function load() {
       try {
-        const [pageRes, fieldsRes] = await Promise.all([
-          fetch(`/api/action-pages/${id}`),
-          fetch(`/api/action-pages/${id}/fields`),
-        ]);
+        setLoading(true);
+        setNotFound(false);
+        setActionPage(null);
+        setFields([]);
+
+        const pageRes = await fetch(`/api/action-pages/${id}`);
 
         if (pageRes.status === 404) {
-          setNotFound(true);
+          if (!cancelled) setNotFound(true);
           return;
         }
 
@@ -57,9 +63,19 @@ export default function ActionPageEditor() {
             ? { ...DEFAULT_CONFIG, ...(page.config as Partial<FormConfig>) }
             : DEFAULT_CONFIG;
 
-        setActionPage({ ...page, config });
+        if (cancelled) return;
 
-        if (fieldsRes.ok) {
+        setActionPage({ ...page, config });
+        setLoading(false);
+
+        fieldsController = new AbortController();
+        fieldsTimeout = window.setTimeout(() => fieldsController?.abort(), 8000);
+
+        try {
+          const fieldsRes = await fetch(`/api/action-pages/${id}/fields`, {
+            signal: fieldsController.signal,
+          });
+          if (!fieldsRes.ok || cancelled) return;
           const fieldsData = await fieldsRes.json();
           const rawFields = Array.isArray(fieldsData.fields) ? fieldsData.fields : [];
           const builderFields: BuilderField[] = rawFields.map(
@@ -86,16 +102,28 @@ export default function ActionPageEditor() {
             })
           );
           setFields(builderFields);
+        } catch (err) {
+          if (!cancelled && !(err instanceof DOMException && err.name === "AbortError")) {
+            console.warn("Error loading action page fields:", err);
+          }
+        } finally {
+          if (fieldsTimeout) window.clearTimeout(fieldsTimeout);
         }
       } catch (err) {
         console.error("Error loading action page:", err);
-        setNotFound(true);
+        if (!cancelled) setNotFound(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     void load();
+
+    return () => {
+      cancelled = true;
+      fieldsController?.abort();
+      if (fieldsTimeout) window.clearTimeout(fieldsTimeout);
+    };
   }, [id]);
 
   async function handleSave(data: {

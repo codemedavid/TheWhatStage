@@ -33,8 +33,13 @@ export async function middleware(request: NextRequest) {
     return updateSession(request, response);
   }
 
-  // --- Main domain /app/* path (new) ---
-  if (!subdomain && request.nextUrl.pathname.startsWith("/app")) {
+  // --- Main domain /app/* and /api/* path (tenant from cookie/DB) ---
+  const needsTenant =
+    request.nextUrl.pathname.startsWith("/app") ||
+    request.nextUrl.pathname.startsWith("/api/integrations") ||
+    request.nextUrl.pathname.startsWith("/api/campaigns") ||
+    request.nextUrl.pathname.startsWith("/api/knowledge");
+  if (!subdomain && needsTenant) {
     const slugFromCookie = request.cookies.get(TENANT_COOKIE_NAME)?.value;
 
     // Try resolving from cookie first

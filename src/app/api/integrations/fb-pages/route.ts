@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getTenantContext } from "@/lib/tenant/context";
+import { consumePendingAuth } from "@/lib/fb/pending-auth";
 import { randomUUID } from "crypto";
 import { invalidateCachedPage } from "@/lib/fb/page-cache";
-
-const FB_PAGES_COOKIE = "fb_available_pages";
 
 export async function GET() {
   const supabase = await createClient();
@@ -53,6 +51,7 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const selectedIds: string[] = body.pageIds;
+  const fbToken: string | undefined = body.fbToken;
 
   if (!Array.isArray(selectedIds) || selectedIds.length === 0) {
     return NextResponse.json(
@@ -61,30 +60,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(FB_PAGES_COOKIE)?.value;
-
-  if (!raw) {
+  if (!fbToken) {
     return NextResponse.json(
       { error: "Session expired. Please authenticate with Facebook again." },
       { status: 400 }
     );
   }
 
-  let cookieData: {
-    userAccessToken: string;
-    pages: Array<{
-      id: string;
-      name: string;
-      access_token: string;
-      category: string;
-      picture: string | null;
-    }>;
-  };
-  try {
-    cookieData = JSON.parse(raw);
-  } catch {
-    return NextResponse.json({ error: "Invalid session data" }, { status: 400 });
+  const cookieData = consumePendingAuth(fbToken);
+  if (!cookieData) {
+    return NextResponse.json(
+      { error: "Session expired. Please authenticate with Facebook again." },
+      { status: 400 }
+    );
   }
 
   const service = createServiceClient();
@@ -119,7 +107,7 @@ export async function POST(request: Request) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             access_token: page.access_token,
-            subscribed_fields: "messages,messaging_postbacks",
+            subscribed_fields: "messages,messaging_postbacks,message_echoes,messaging_referrals,message_reads",
           }),
         }
       );
@@ -160,8 +148,6 @@ export async function POST(request: Request) {
       errors.push({ pageId, error: "Unexpected error" });
     }
   }
-
-  cookieStore.delete(FB_PAGES_COOKIE);
 
   return NextResponse.json({ connected, errors });
 }

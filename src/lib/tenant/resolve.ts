@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/service";
+import { getAppHostname } from "@/lib/supabase/cookie-domain";
 import type { Database } from "@/types/database";
 
 export interface TenantInfo {
@@ -38,15 +39,23 @@ export async function resolveTenantBySlug(slug: string): Promise<TenantInfo | nu
 
 export function extractSubdomain(host: string): string | null {
   // Strip port
-  const hostname = host.split(":")[0];
+  const hostname = host.split(":")[0].toLowerCase();
+  const configuredHostname = getAppHostname();
+  const baseDomains = Array.from(
+    new Set([configuredHostname, "whatstage.app", "lvh.me"].filter(Boolean))
+  ) as string[];
 
-  // Production: {slug}.whatstage.app
-  const prodMatch = hostname.match(/^([^.]+)\.whatstage\.app$/);
-  if (prodMatch) return prodMatch[1];
+  for (const baseDomain of baseDomains) {
+    if (hostname === baseDomain) return null;
 
-  // Local dev: {slug}.lvh.me
-  const devMatch = hostname.match(/^([^.]+)\.lvh\.me$/);
-  if (devMatch) return devMatch[1];
+    const suffix = `.${baseDomain}`;
+    if (!hostname.endsWith(suffix)) continue;
+
+    const subdomain = hostname.slice(0, -suffix.length);
+    if (subdomain && !subdomain.includes(".")) {
+      return subdomain;
+    }
+  }
 
   return null;
 }
