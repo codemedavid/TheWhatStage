@@ -50,7 +50,7 @@ const actorConfig = {
   automation: { icon: Zap, label: "Automation" },
 };
 
-export function StageHistoryTimeline({ history, stages }: StageHistoryTimelineProps) {
+export default function StageHistoryTimeline({ history, stages }: StageHistoryTimelineProps) {
   const stageMap = new Map(stages.map((s) => [s.id, s]));
 
   return (
