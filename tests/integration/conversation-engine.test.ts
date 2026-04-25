@@ -29,6 +29,14 @@ vi.mock("@/lib/ai/campaign-assignment", () => ({
   getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
 }));
 
+vi.mock("@/lib/leads/knowledge-extractor", () => ({
+  extractKnowledge: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/leads/summary-generator", () => ({
+  generateLeadSummary: vi.fn().mockResolvedValue(undefined),
+}));
+
 // ---------------------------------------------------------------------------
 // Shared fixtures
 // ---------------------------------------------------------------------------
@@ -176,6 +184,42 @@ function mockTenantPersona() {
         single: vi.fn().mockResolvedValue({
           data: { persona_tone: "friendly", custom_instructions: null },
           error: null,
+        }),
+      }),
+    }),
+  });
+}
+
+/**
+ * Mock: campaigns SELECT (fetch campaign context)
+ * Chain: .from().select().eq().single()
+ */
+function mockCampaignData(
+  data: unknown = { name: "Test Campaign", description: null, goal: "form_submit", campaign_rules: [] }
+) {
+  mockFrom.mockReturnValueOnce({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({ data, error: null }),
+      }),
+    }),
+  });
+}
+
+/**
+ * Mock: messages SELECT (idle gap check)
+ * Chain: .from().select().eq().neq().order().limit().maybeSingle()
+ */
+function mockMessagesIdleCheck(data: unknown = null) {
+  mockFrom.mockReturnValueOnce({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        neq: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
+            }),
+          }),
         }),
       }),
     }),
@@ -351,22 +395,25 @@ describe("Conversation Engine Integration", () => {
     // DB call 1: getCurrentPhase → conversation_phases SELECT
     mockGetCurrentPhase(phaseRow);
 
+    // DB call 2: campaigns SELECT (fetch campaign context)
+    mockCampaignData();
+
     // Fetch 1: embedding for RAG retrieval
     mockEmbeddingFetch();
 
     // RPC 1 + 2: vector search (both targets, general + product in Promise.all)
     mockVectorSearch(0.75);
 
-    // DB call 2: tenants SELECT (fetch max_images_per_response) — added in Phase 5
+    // DB call 3: tenants SELECT (fetch max_images_per_response) — added in Phase 5
     mockTenantConfig();
 
-    // DB call 3: knowledge_images tag filter (selectImages) — returns no candidates → early exit
+    // DB call 4: knowledge_images tag filter (selectImages) — returns no candidates → early exit
     mockImageTagFilter([]);
 
-    // DB calls 4, 5 & 6 (in Promise.all inside buildSystemPrompt):
-    //   call 4: bot_rules SELECT
-    //   call 5: messages SELECT
-    //   call 6: tenants SELECT (persona_tone + custom_instructions)
+    // DB calls 5, 6 & 7 (in Promise.all inside buildSystemPrompt):
+    //   call 5: bot_rules SELECT
+    //   call 6: messages SELECT
+    //   call 7: tenants SELECT (persona_tone + custom_instructions)
     mockBotRules([]);
     mockMessages([]);
     mockTenantPersona();
@@ -377,6 +424,9 @@ describe("Conversation Engine Integration", () => {
     // DB calls 5 & 6: incrementMessageCount (read then write)
     mockIncrementRead(0);
     mockIncrementWrite();
+
+    // DB call 7: messages idle gap check
+    mockMessagesIdleCheck(null);
 
     const result = await handleMessage(engineInput);
 
@@ -397,22 +447,25 @@ describe("Conversation Engine Integration", () => {
     // DB call 1: getCurrentPhase → conversation_phases SELECT
     mockGetCurrentPhase(phaseRow);
 
+    // DB call 2: campaigns SELECT (fetch campaign context)
+    mockCampaignData();
+
     // Fetch 1: embedding for RAG retrieval
     mockEmbeddingFetch();
 
     // RPC 1 + 2: vector search
     mockVectorSearch(0.75);
 
-    // DB call 2: tenants SELECT (fetch max_images_per_response) — added in Phase 5
+    // DB call 3: tenants SELECT (fetch max_images_per_response) — added in Phase 5
     mockTenantConfig();
 
-    // DB call 3: knowledge_images tag filter (selectImages) — returns no candidates → early exit
+    // DB call 4: knowledge_images tag filter (selectImages) — returns no candidates → early exit
     mockImageTagFilter([]);
 
-    // DB calls 4, 5 & 6 (buildSystemPrompt Promise.all):
-    //   call 4: bot_rules SELECT
-    //   call 5: messages SELECT
-    //   call 6: tenants SELECT (persona_tone + custom_instructions)
+    // DB calls 5, 6 & 7 (buildSystemPrompt Promise.all):
+    //   call 5: bot_rules SELECT
+    //   call 6: messages SELECT
+    //   call 7: tenants SELECT (persona_tone + custom_instructions)
     mockBotRules([]);
     mockMessages([]);
     mockTenantPersona();
@@ -449,6 +502,9 @@ describe("Conversation Engine Integration", () => {
     mockIncrementRead(0);
     mockIncrementWrite();
 
+    // DB call 9: messages idle gap check
+    mockMessagesIdleCheck(null);
+
     const result = await handleMessage(engineInput);
 
     expect(result.phaseAction).toBe("advance");
@@ -466,22 +522,25 @@ describe("Conversation Engine Integration", () => {
     // DB call 1: getCurrentPhase → conversation_phases SELECT
     mockGetCurrentPhase(phaseRow);
 
+    // DB call 2: campaigns SELECT (fetch campaign context)
+    mockCampaignData();
+
     // Fetch 1: embedding for RAG retrieval
     mockEmbeddingFetch();
 
     // RPC 1 + 2: vector search
     mockVectorSearch(0.75);
 
-    // DB call 2: tenants SELECT (fetch max_images_per_response) — added in Phase 5
+    // DB call 3: tenants SELECT (fetch max_images_per_response) — added in Phase 5
     mockTenantConfig();
 
-    // DB call 3: knowledge_images tag filter (selectImages) — returns no candidates → early exit
+    // DB call 4: knowledge_images tag filter (selectImages) — returns no candidates → early exit
     mockImageTagFilter([]);
 
-    // DB calls 4, 5 & 6 (buildSystemPrompt Promise.all):
-    //   call 4: bot_rules SELECT
-    //   call 5: messages SELECT
-    //   call 6: tenants SELECT (persona_tone + custom_instructions)
+    // DB calls 5, 6 & 7 (buildSystemPrompt Promise.all):
+    //   call 5: bot_rules SELECT
+    //   call 6: messages SELECT
+    //   call 7: tenants SELECT (persona_tone + custom_instructions)
     mockBotRules([]);
     mockMessages([]);
     mockTenantPersona();
@@ -499,6 +558,9 @@ describe("Conversation Engine Integration", () => {
     // DB calls 6 & 7: incrementMessageCount (read then write)
     mockIncrementRead(0);
     mockIncrementWrite();
+
+    // DB call 8: messages idle gap check
+    mockMessagesIdleCheck(null);
 
     const result = await handleMessage(engineInput);
 

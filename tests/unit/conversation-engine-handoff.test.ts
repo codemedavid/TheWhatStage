@@ -34,6 +34,14 @@ vi.mock("@/lib/ai/campaign-assignment", () => ({
   getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
 }));
 
+vi.mock("@/lib/leads/knowledge-extractor", () => ({
+  extractKnowledge: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/leads/summary-generator", () => ({
+  generateLeadSummary: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Track all supabase calls
 const mockInsert = vi.fn().mockResolvedValue({ error: null });
 const mockUpdateEq = vi.fn().mockResolvedValue({ error: null });
@@ -75,11 +83,38 @@ vi.mock("@/lib/supabase/service", () => ({
           insert: mockInsert,
         };
       }
+      if (table === "campaigns") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { name: "Test Campaign", description: null, goal: "form_submit", campaign_rules: [] },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "knowledge_images") {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               in: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === "messages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              neq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                  }),
+                }),
+              }),
             }),
           }),
         };

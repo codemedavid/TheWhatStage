@@ -41,6 +41,14 @@ vi.mock("@/lib/ai/campaign-assignment", () => ({
   getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
 }));
 
+vi.mock("@/lib/leads/knowledge-extractor", () => ({
+  extractKnowledge: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/leads/summary-generator", () => ({
+  generateLeadSummary: vi.fn().mockResolvedValue(undefined),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
 
@@ -118,6 +126,18 @@ describe("Full conversation with images", () => {
           }),
         };
       }
+      if (table === "campaigns") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { name: "Shoe Campaign", description: null, goal: "form_submit", campaign_rules: [] },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "knowledge_images") {
         return {
           select: vi.fn().mockReturnValue({
@@ -128,6 +148,21 @@ describe("Full conversation with images", () => {
                   { id: "img-blue", url: "https://cdn/blue-shoe.jpg" },
                 ],
                 error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "messages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              neq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                  }),
+                }),
               }),
             }),
           }),
@@ -202,6 +237,18 @@ describe("Full conversation with images", () => {
           }),
         };
       }
+      if (table === "campaigns") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { name: "Shop Campaign", description: null, goal: "form_submit", campaign_rules: [] },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "knowledge_images") {
         return {
           select: vi.fn().mockReturnValue({
@@ -209,6 +256,21 @@ describe("Full conversation with images", () => {
               in: vi.fn().mockResolvedValue({
                 data: [{ id: "img-leaked", url: "https://cdn/product.jpg" }],
                 error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "messages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              neq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                  }),
+                }),
               }),
             }),
           }),

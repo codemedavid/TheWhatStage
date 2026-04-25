@@ -44,6 +44,14 @@ vi.mock("@/lib/ai/campaign-assignment", () => ({
   getOrAssignCampaign: vi.fn().mockResolvedValue("campaign-id-1"),
 }));
 
+vi.mock("@/lib/leads/knowledge-extractor", () => ({
+  extractKnowledge: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/leads/summary-generator", () => ({
+  generateLeadSummary: vi.fn().mockResolvedValue(undefined),
+}));
+
 const mockSupabaseFrom = vi.fn();
 const mockSupabaseRpc = vi.fn();
 vi.mock("@/lib/supabase/service", () => ({
@@ -106,6 +114,23 @@ beforeEach(() => {
         }),
       };
     }
+    if (table === "campaigns") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: {
+                name: "Primary Offer",
+                description: "A lead generation service.",
+                goal: "form_submit",
+                campaign_rules: [],
+              },
+              error: null,
+            }),
+          }),
+        }),
+      };
+    }
     if (table === "escalation_events") {
       return {
         insert: vi.fn().mockResolvedValue({ error: null }),
@@ -118,6 +143,21 @@ beforeEach(() => {
             in: vi.fn().mockResolvedValue({
               data: [],
               error: null,
+            }),
+          }),
+        }),
+      };
+    }
+    if (table === "messages") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            neq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
             }),
           }),
         }),
@@ -226,8 +266,35 @@ describe("handleMessage — image integration", () => {
           }),
         };
       }
+      if (table === "campaigns") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { name: "Offer", description: null, goal: "form_submit", campaign_rules: [] },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "escalation_events") {
         return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }
+      if (table === "messages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              neq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
       }
       return {};
     });
@@ -297,8 +364,35 @@ describe("handleMessage — image integration", () => {
           }),
         };
       }
+      if (table === "campaigns") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { name: "Offer", description: null, goal: "form_submit", campaign_rules: [] },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "escalation_events") {
         return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }
+      if (table === "messages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              neq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
       }
       return {};
     });
@@ -367,8 +461,35 @@ describe("handleMessage — image integration", () => {
           }),
         };
       }
+      if (table === "campaigns") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { name: "Offer", description: null, goal: "form_submit", campaign_rules: [] },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "escalation_events") {
         return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }
+      if (table === "messages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              neq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
       }
       return {};
     });
