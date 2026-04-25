@@ -10,6 +10,8 @@ import {
 import { handleMessage } from "@/lib/ai/conversation-engine";
 import { sendMessage, sendSenderAction } from "@/lib/fb/send";
 import type { Database } from "@/types/database";
+import { buildActionPageUrl } from "@/lib/fb/action-url";
+import { getAppHost, getAppProtocol } from "@/lib/supabase/cookie-domain";
 
 type Supabase = ReturnType<typeof createServiceClient>;
 
@@ -120,6 +122,11 @@ async function processMessagingEvent(
   const { tenantId, pageId, pageToken } = pageCtx;
   const psid = event.sender.id;
 
+  // Skip echo messages (messages sent by the page itself)
+  if (event.message?.is_echo) {
+    return;
+  }
+
   // 1. Upsert lead (assign default stage on first creation)
   // Find the first stage for this tenant if we need to assign one
   const { data: defaultStage } = await supabase
@@ -162,7 +169,7 @@ async function processMessagingEvent(
   if (!lead.fb_name) {
     try {
       const profileRes = await fetch(
-        `https://graph.facebook.com/${psid}?fields=first_name,last_name,name,profile_pic&access_token=${pageToken}`
+        `https://graph.facebook.com/v21.0/${psid}?fields=first_name,last_name,name,profile_pic&access_token=${pageToken}`
       );
       if (profileRes.ok) {
         const profile = await profileRes.json();
@@ -173,10 +180,15 @@ async function processMessagingEvent(
         if (profile.profile_pic) updates.fb_profile_pic = profile.profile_pic;
         if (Object.keys(updates).length > 0) {
           await supabase.from("leads").update(updates).eq("id", lead.id);
+        } else {
+          console.warn(`FB profile API returned no name fields for psid: ${psid}`);
         }
+      } else {
+        const errBody = await profileRes.text();
+        console.error(`FB profile API error for psid ${psid}: ${profileRes.status} — ${errBody}`);
       }
-    } catch {
-      // Non-blocking — profile fetch is best-effort
+    } catch (err) {
+      console.error(`FB profile fetch failed for psid ${psid}:`, err);
     }
   }
 
@@ -353,6 +365,81 @@ async function generateAndSendReply(params: {
           attachments: [{ type: "image", url: image.url }],
           mid: imgResult.messageId,
         } as Database["public"]["Tables"]["messages"]["Insert"]);
+      }
+    }
+
+    // Send action button if the engine selected one
+    if (engineOutput.actionButton) {
+      const { data: actionPage } = await supabase
+        .from("action_pages")
+        .select("slug, title, cta_text")
+        .eq("id", engineOutput.actionButton.actionPageId)
+        .eq("tenant_id", tenantId)
+        .single();
+
+      if (actionPage) {
+        const { data: tenantData } = await supabase
+          .from("tenants")
+          .select("slug, fb_app_secret")
+          .eq("id", tenantId)
+          .single();
+
+        if (tenantData?.fb_app_secret && tenantData.slug) {
+          const appDomain = getAppHost() ?? "whatstage.com";
+          const protocol = getAppProtocol();
+
+          const actionUrl = buildActionPageUrl({
+            tenantSlug: tenantData.slug,
+            actionPageSlug: actionPage.slug,
+            psid,
+            appSecret: tenantData.fb_app_secret,
+            appDomain,
+            protocol,
+          });
+
+          // Resolve CTA: engine custom > action page default > generic fallback
+          const ctaText =
+            engineOutput.actionButton.ctaText ||
+            actionPage.cta_text ||
+            "Check this out";
+
+          const btnResult = await sendMessage(
+            psid,
+            {
+              type: "buttons",
+              text: ctaText,
+              buttons: [
+                {
+                  type: "web_url",
+                  title: actionPage.title.slice(0, 20),
+                  url: actionUrl,
+                },
+              ],
+            },
+            pageToken
+          );
+
+          // Store the button message
+          await supabase.from("messages").insert({
+            conversation_id: conversationId,
+            direction: "out",
+            text: ctaText,
+            attachments: [{ type: "button", url: actionUrl, title: actionPage.title }],
+            mid: btnResult.messageId,
+          } as Database["public"]["Tables"]["messages"]["Insert"]);
+
+          // Log the action button send event
+          await supabase.from("lead_events").insert({
+            tenant_id: tenantId,
+            lead_id: leadId,
+            type: "action_button_sent",
+            payload: {
+              action_page_id: engineOutput.actionButton.actionPageId,
+              action_page_slug: actionPage.slug,
+              message_id: btnResult.messageId,
+            },
+          } as Database["public"]["Tables"]["lead_events"]["Insert"]);
+        }
       }
     }
   } catch (error) {
