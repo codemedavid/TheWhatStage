@@ -21,6 +21,21 @@ export type CampaignPlanJson = {
   phase_outline: { name: string; purpose: string }[];
 };
 
+export type FormConfig = {
+  heading: string;
+  description?: string;
+  layout: "single_column" | "two_column" | "with_hero";
+  hero_image_url?: string;
+  submit_button_text: string;
+  thank_you_message: string;
+  brand_color?: string;
+};
+
+export type LeadMapping =
+  | { target: "lead_contact"; type: "email" | "phone" }
+  | { target: "lead_knowledge"; key: string }
+  | null;
+
 export interface Database {
   public: {
     Tables: {
@@ -108,7 +123,7 @@ export interface Database {
         lead_id: string;
         key: string;
         value: string;
-        source: "ai_extracted" | "manual";
+        source: "ai_extracted" | "manual" | "form_submit";
         extracted_from: string | null;
         created_at: string;
         updated_at: string;
@@ -172,6 +187,20 @@ export interface Database {
         lead_id: string;
         psid: string;
         data: Json;
+        created_at: string;
+      }>;
+      action_page_fields: TableRow<{
+        id: string;
+        tenant_id: string;
+        action_page_id: string;
+        label: string;
+        field_key: string;
+        field_type: "text" | "email" | "phone" | "textarea" | "select" | "number" | "radio" | "checkbox";
+        placeholder: string | null;
+        required: boolean;
+        options: Json;
+        order_index: number;
+        lead_mapping: Json;
         created_at: string;
       }>;
       products: TableRow<{
