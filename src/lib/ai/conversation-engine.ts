@@ -28,6 +28,10 @@ export interface EngineOutput {
   currentPhase: string;
   escalated: boolean;
   paused: boolean;
+  actionButton?: {
+    actionPageId: string;
+    ctaText: string;
+  };
 }
 
 const HEDGING_PHRASES = [
@@ -190,6 +194,21 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   // Step 7: Parse decision
   const decision = parseDecision(llmResponse.content);
 
+  // Step 7b: Validate action button selection
+  let actionButton: { actionPageId: string; ctaText: string } | undefined;
+  if (decision.actionButtonId) {
+    const isValid =
+      currentPhase.actionButtonIds !== null &&
+      currentPhase.actionButtonIds.includes(decision.actionButtonId);
+
+    if (isValid) {
+      actionButton = {
+        actionPageId: decision.actionButtonId,
+        ctaText: decision.ctaText ?? "",
+      };
+    }
+  }
+
   // Step 8: Strip leaked SEND_IMAGE tokens from message
   const parsed = parseResponse(decision.message);
 
@@ -290,5 +309,6 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     currentPhase: currentPhase.name,
     escalated,
     paused: false,
+    actionButton,
   };
 }

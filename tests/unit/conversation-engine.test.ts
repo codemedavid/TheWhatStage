@@ -187,6 +187,8 @@ beforeEach(() => {
     phaseAction: "stay",
     confidence: 0.85,
     imageIds: [],
+    actionButtonId: null,
+    ctaText: null,
   });
   // New mocks for image-selector and response-parser
   mockSelectImages.mockResolvedValue([]);
@@ -294,6 +296,8 @@ describe("handleMessage", () => {
       phaseAction: "advance",
       confidence: 0.9,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
     mockAdvancePhase.mockResolvedValue({ ...defaultPhase, name: "Qualify", orderIndex: 1, conversationPhaseId: "cp-2" });
 
@@ -310,6 +314,8 @@ describe("handleMessage", () => {
       phaseAction: "escalate",
       confidence: 0.85,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     const result = await handleMessage(defaultInput);
@@ -331,6 +337,8 @@ describe("handleMessage", () => {
       phaseAction: "stay",
       confidence: 0.55,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     const result = await handleMessage(defaultInput);
@@ -357,6 +365,8 @@ describe("handleMessage", () => {
       phaseAction: "stay",
       confidence: 0.75,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     const result = await handleMessage(defaultInput);
@@ -370,6 +380,8 @@ describe("handleMessage", () => {
       phaseAction: "escalate",
       confidence: 0.2,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     const result = await handleMessage(defaultInput);
@@ -383,6 +395,8 @@ describe("handleMessage", () => {
       phaseAction: "stay",
       confidence: 0.9,
       imageIds: ["img-1", "img-2", "img-3"],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     // Override supabase to validate these image IDs for this test
@@ -480,6 +494,8 @@ describe("handleMessage", () => {
       phaseAction: "stay",
       confidence: 0.4,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     const result = await handleMessage(defaultInput);
@@ -493,9 +509,93 @@ describe("handleMessage", () => {
       phaseAction: "stay",
       confidence: 0.7,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     const result = await handleMessage(defaultInput);
     expect(result.message).toBe("The price is $25.");
+  });
+
+  it("includes actionButton in output when decision has valid action_button_id", async () => {
+    mockParseDecision.mockReturnValue({
+      message: "Check this out!",
+      phaseAction: "stay",
+      confidence: 0.9,
+      imageIds: [],
+      actionButtonId: "ap-1",
+      ctaText: "Book your spot now!",
+    });
+
+    // Override phase to include actionButtonIds
+    mockGetCurrentPhase.mockResolvedValue({
+      ...defaultPhase,
+      actionButtonIds: ["ap-1", "ap-2"],
+    });
+
+    const result = await handleMessage(defaultInput);
+
+    expect(result.actionButton).toEqual({
+      actionPageId: "ap-1",
+      ctaText: "Book your spot now!",
+    });
+  });
+
+  it("returns no actionButton when decision has no action_button_id", async () => {
+    mockParseDecision.mockReturnValue({
+      message: "Hello!",
+      phaseAction: "stay",
+      confidence: 0.85,
+      imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
+    });
+
+    const result = await handleMessage(defaultInput);
+
+    expect(result.actionButton).toBeUndefined();
+  });
+
+  it("ignores action_button_id not in phase actionButtonIds", async () => {
+    mockParseDecision.mockReturnValue({
+      message: "Check this!",
+      phaseAction: "stay",
+      confidence: 0.9,
+      imageIds: [],
+      actionButtonId: "ap-invalid",
+      ctaText: null,
+    });
+
+    mockGetCurrentPhase.mockResolvedValue({
+      ...defaultPhase,
+      actionButtonIds: ["ap-1"],
+    });
+
+    const result = await handleMessage(defaultInput);
+
+    expect(result.actionButton).toBeUndefined();
+  });
+
+  it("uses empty string ctaText when AI provides actionButtonId but no ctaText", async () => {
+    mockParseDecision.mockReturnValue({
+      message: "Here you go!",
+      phaseAction: "stay",
+      confidence: 0.9,
+      imageIds: [],
+      actionButtonId: "ap-1",
+      ctaText: null,
+    });
+
+    mockGetCurrentPhase.mockResolvedValue({
+      ...defaultPhase,
+      actionButtonIds: ["ap-1"],
+    });
+
+    const result = await handleMessage(defaultInput);
+
+    expect(result.actionButton).toEqual({
+      actionPageId: "ap-1",
+      ctaText: "",
+    });
   });
 });
