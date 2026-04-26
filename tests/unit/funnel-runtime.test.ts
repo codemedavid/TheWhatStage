@@ -115,3 +115,40 @@ describe("incrementFunnelMessageCount", () => {
     expect(svc.state.funnel_message_count).toBe(8);
   });
 });
+
+describe("getOrInitFunnelState — error paths", () => {
+  it("throws when funnels is empty", async () => {
+    const svc = fakeService({ current_campaign_id: null, current_funnel_id: null, current_funnel_position: 0, funnel_message_count: 0 });
+    await expect(getOrInitFunnelState(svc, "conv1", "c1", [])).rejects.toThrow(/empty funnels/i);
+  });
+
+  it("does not call update when state already matches", async () => {
+    const updateSpy = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+    const svc = {
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: {
+            current_campaign_id: "c1", current_funnel_id: "f0",
+            current_funnel_position: 0, funnel_message_count: 2,
+          },
+          error: null,
+        }),
+        update: updateSpy,
+      })),
+    } as any;
+    await getOrInitFunnelState(svc, "conv1", "c1", funnels);
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("advanceFunnel — error paths", () => {
+  it("throws when current_funnel_id is not in funnels", async () => {
+    const svc = fakeService({
+      current_campaign_id: "c1", current_funnel_id: "STALE",
+      current_funnel_position: 0, funnel_message_count: 0,
+    });
+    await expect(advanceFunnel(svc, "conv1", funnels)).rejects.toThrow(/not found/i);
+  });
+});

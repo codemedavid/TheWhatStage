@@ -54,7 +54,7 @@ export async function getOrInitFunnelState(
   }
 
   const first = funnels[0];
-  await service
+  const { error: updateError } = await service
     .from("conversations")
     .update({
       current_campaign_id: campaignId,
@@ -63,6 +63,7 @@ export async function getOrInitFunnelState(
       funnel_message_count: 0,
     })
     .eq("id", conversationId);
+  if (updateError) throw new Error(`Failed to update conversation ${conversationId}: ${updateError.message}`);
 
   return { funnel: first, position: 0, messageCount: 0 };
 }
@@ -74,23 +75,26 @@ export async function advanceFunnel(
 ): Promise<{ funnel: CampaignFunnel; position: number; advanced: boolean; completed: boolean }> {
   const row = await loadConversationRow(service, conversationId);
   const currentIndex = funnels.findIndex((f) => f.id === row.current_funnel_id);
-  const idx = currentIndex < 0 ? 0 : currentIndex;
-
-  if (idx >= funnels.length - 1) {
-    return { funnel: funnels[idx], position: idx, advanced: false, completed: true };
+  if (currentIndex < 0) {
+    throw new Error(`Current funnel ${row.current_funnel_id} not found in campaign funnels`);
   }
 
-  const next = funnels[idx + 1];
-  await service
+  if (currentIndex >= funnels.length - 1) {
+    return { funnel: funnels[currentIndex], position: currentIndex, advanced: false, completed: true };
+  }
+
+  const next = funnels[currentIndex + 1];
+  const { error } = await service
     .from("conversations")
     .update({
       current_funnel_id: next.id,
-      current_funnel_position: idx + 1,
+      current_funnel_position: currentIndex + 1,
       funnel_message_count: 0,
     })
     .eq("id", conversationId);
+  if (error) throw new Error(`Failed to update conversation ${conversationId}: ${error.message}`);
 
-  return { funnel: next, position: idx + 1, advanced: true, completed: false };
+  return { funnel: next, position: currentIndex + 1, advanced: true, completed: false };
 }
 
 export async function incrementFunnelMessageCount(
@@ -98,10 +102,11 @@ export async function incrementFunnelMessageCount(
   conversationId: string
 ): Promise<void> {
   const row = await loadConversationRow(service, conversationId);
-  await service
+  const { error } = await service
     .from("conversations")
     .update({ funnel_message_count: row.funnel_message_count + 1 })
     .eq("id", conversationId);
+  if (error) throw new Error(`Failed to update conversation ${conversationId}: ${error.message}`);
 }
 
 export async function markFunnelCompletedByActionPage(
