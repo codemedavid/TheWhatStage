@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { requireTenantContext } from "@/lib/queries/tenant";
 import { createServiceClient } from "@/lib/supabase/service";
 import { AiBuilderEmptyState } from "@/components/dashboard/campaigns/AiBuilderEmptyState";
-import AiCampaignBuilderClient from "./AiCampaignBuilderClient";
+import { FunnelBuilderClient } from "@/components/dashboard/campaigns/FunnelBuilderClient";
+import type { AvailablePage } from "@/lib/ai/funnel-builder";
+import type { ActionPageType } from "@/lib/ai/funnel-templates";
 
 export default async function AiCampaignBuilderPage() {
   let tenantId: string;
@@ -16,7 +18,7 @@ export default async function AiCampaignBuilderPage() {
   const service = createServiceClient();
   const { data: pages } = await service
     .from("action_pages")
-    .select("id")
+    .select("id, type, title")
     .eq("tenant_id", tenantId)
     .eq("published", true);
 
@@ -24,5 +26,11 @@ export default async function AiCampaignBuilderPage() {
     return <AiBuilderEmptyState />;
   }
 
-  return <AiCampaignBuilderClient />;
+  const availablePages: AvailablePage[] = pages.map((p) => ({
+    id: p.id,
+    type: p.type as ActionPageType,
+    title: p.title,
+  }));
+
+  return <FunnelBuilderClient availablePages={availablePages} />;
 }
