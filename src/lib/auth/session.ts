@@ -20,3 +20,13 @@ export async function resolveSession(): Promise<{ userId: string; tenantId: stri
   if (!data?.tenant_id) return null;
   return { userId: user.id, tenantId: data.tenant_id };
 }
+
+/**
+ * Like resolveSession but throws "UNAUTHORIZED" instead of returning null.
+ * Use in API routes that require authentication.
+ */
+export async function requireTenantSession(): Promise<{ userId: string; tenantId: string }> {
+  const session = await resolveSession();
+  if (!session) throw new Error("UNAUTHORIZED");
+  return session;
+}
