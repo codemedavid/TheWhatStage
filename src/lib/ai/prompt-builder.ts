@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import type { CurrentPhase } from "@/lib/ai/phase-machine";
+import type { StepContext } from "@/lib/ai/step-context";
 import type { ChunkResult } from "@/lib/ai/vector-search";
 
 const MAX_HISTORY_CHARS = 8000;
@@ -24,7 +24,7 @@ export interface CampaignContext {
 export interface PromptContext {
   tenantId: string;
   businessName: string;
-  currentPhase: CurrentPhase;
+  step: StepContext;
   conversationId: string;
   ragChunks: ChunkResult[];
   images?: KnowledgeImage[];
@@ -122,30 +122,26 @@ function buildCampaignRules(rules?: string[]): string {
   ].join("\n");
 }
 
-// Layer 3
-function buildPhaseContext(phase: CurrentPhase, testMode: boolean): string {
+function buildStepContext(step: StepContext, testMode: boolean): string {
   if (testMode) {
-    return "--- CURRENT PHASE ---\nTEST MODE — no active phase. Respond based on retrieved knowledge and rules only.";
+    return "--- CURRENT STEP ---\nTEST MODE — no active step. Respond based on retrieved knowledge and rules only.";
   }
   const lines = [
-    `--- WHERE YOU ARE IN THE CONVERSATION ---`,
-    `Phase: ${phase.name}`,
-    `${phase.systemPrompt}`,
-    `Vibe: ${phase.tone}`,
+    `--- WHERE YOU ARE IN THE FUNNEL ---`,
+    `${step.name}`,
+    ``,
+    step.instructions,
+    `Vibe: ${step.tone}`,
   ];
-  if (phase.goals) {
-    lines.push(`What you're trying to achieve: ${phase.goals}`);
-  }
-  if (phase.transitionHint) {
-    lines.push(`When to move on: ${phase.transitionHint}`);
-  }
-  lines.push(`(You've exchanged ${phase.messageCount} messages in this phase — soft limit is ${phase.maxMessages}, don't rush but don't linger either)`);
-  if (phase.orderIndex !== undefined && phase.orderIndex <= 1) {
+  if (step.goal) lines.push(`Campaign goal: ${step.goal}`);
+  if (step.transitionHint) lines.push(`When to move on: ${step.transitionHint}`);
+  lines.push(`(You've exchanged ${step.messageCount} messages in this step — soft limit is ${step.maxMessages}, don't rush but don't linger either)`);
+  if (step.position === 0) {
     lines.push(`\nEARLY CONVERSATION — keep replies to 1-2 short lines only. No walls of text. You're just getting to know them.`);
   }
   lines.push(
     "",
-    "The phase is guidance, not a rule. If the lead's intent clearly belongs to another step, respond to the lead's intent first. You may advance when the conversation naturally moves forward."
+    "The step is guidance, not a rule. If the lead's intent clearly belongs to another step, respond to the lead's intent first. You may advance when the conversation naturally moves forward."
   );
   return lines.join("\n");
 }
@@ -448,7 +444,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const layer3 = buildOfferingContext(businessType, botGoal, ctx.campaign);
   const layer4 = buildSalesStrategy();
   const layer5 = buildVagueIntentRules();
-  const layer6 = buildPhaseContext(ctx.currentPhase, ctx.testMode ?? false);
+  const layer6 = buildStepContext(ctx.step, ctx.testMode ?? false);
   const layer7 = buildConversationHistory(messages);
   const layer8 = buildRetrievedKnowledge(ctx.ragChunks);
   const layer9 = buildAvailableImages(ctx.images);
@@ -507,12 +503,12 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   // Fetch action button info if phase has action buttons
   let actionButtons: ActionButtonInfo[] = [];
-  if (ctx.currentPhase.actionButtonIds && ctx.currentPhase.actionButtonIds.length > 0) {
+  if (ctx.step.actionButtonIds.length > 0) {
     const { data: actionPages } = await supabase
       .from("action_pages")
       .select("id, title, type, cta_text")
       .eq("tenant_id", ctx.tenantId)
-      .in("id", ctx.currentPhase.actionButtonIds);
+      .in("id", ctx.step.actionButtonIds);
 
     if (actionPages) {
       actionButtons = actionPages as ActionButtonInfo[];

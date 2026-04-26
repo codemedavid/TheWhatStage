@@ -1,4 +1,3 @@
-import { getCurrentPhase, advancePhase, incrementMessageCount } from "@/lib/ai/phase-machine";
 import { getOrAssignCampaign } from "@/lib/ai/campaign-assignment";
 import { retrieveKnowledge } from "@/lib/ai/retriever";
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
@@ -10,6 +9,14 @@ import { parseResponse } from "@/lib/ai/response-parser";
 import { createServiceClient } from "@/lib/supabase/service";
 import { extractKnowledge } from "@/lib/leads/knowledge-extractor";
 import { generateLeadSummary } from "@/lib/leads/summary-generator";
+import { listFunnelsForCampaign } from "@/lib/db/campaign-funnels";
+import {
+  getOrInitFunnelState,
+  advanceFunnel,
+  incrementFunnelMessageCount,
+} from "@/lib/ai/funnel-runtime";
+import { funnelToStep } from "@/lib/ai/step-context";
+import { ACTION_PAGE_TYPES, type ActionPageType } from "@/lib/ai/funnel-templates";
 
 export interface EngineInput {
   tenantId: string;
@@ -28,6 +35,7 @@ export interface EngineOutput {
   currentPhase: string;
   escalated: boolean;
   paused: boolean;
+  completedFunnel?: boolean;
   actionButton?: {
     actionPageId: string;
     ctaText: string;
@@ -79,6 +87,7 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
         currentPhase: "",
         escalated: false,
         paused: true,
+        completedFunnel: false,
       };
     }
 
@@ -96,6 +105,7 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
         currentPhase: "",
         escalated: false,
         paused: true,
+        completedFunnel: false,
       };
     }
 
@@ -118,11 +128,23 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     });
   }
 
-  // Step 0: Get or assign campaign for this lead
+  // Step 0: Get or assign campaign
   const campaignId = await getOrAssignCampaign(leadId, tenantId);
 
-  // Step 1: Get/initialize current phase
-  const currentPhase = await getCurrentPhase(conversationId, campaignId);
+  // Step 1: Load funnels for the campaign
+  const funnels = await listFunnelsForCampaign(supabase, campaignId);
+  if (funnels.length === 0) {
+    return {
+      message: "",
+      phaseAction: "stay",
+      confidence: 0,
+      imageIds: [],
+      currentPhase: "",
+      escalated: false,
+      paused: true,
+      completedFunnel: false,
+    };
+  }
 
   const { data: campaignData } = await supabase
     .from("campaigns")
@@ -139,13 +161,47 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
       }
     : undefined;
 
+  // Step 1b: Funnel state
+  const funnelState = await getOrInitFunnelState(supabase, conversationId, campaignId, funnels);
+
+  // Step 1c: Action page metadata for the current funnel
+  const { data: pageRow } = await supabase
+    .from("action_pages")
+    .select("title, type")
+    .eq("id", funnelState.funnel.actionPageId)
+    .single();
+  if (!pageRow) {
+    throw new Error(`Action page missing for funnel ${funnelState.funnel.id}`);
+  }
+  const pageType = pageRow.type as string;
+  if (!ACTION_PAGE_TYPES.includes(pageType as ActionPageType)) {
+    throw new Error(`Unsupported page type: ${pageType}`);
+  }
+
+  // Step 1d: Tenant tone
+  const { data: toneRow } = await supabase
+    .from("tenants")
+    .select("persona_tone")
+    .eq("id", tenantId)
+    .single();
+  const tone = (toneRow?.persona_tone as string | undefined) ?? "friendly";
+
+  const step = funnelToStep({
+    funnel: funnelState.funnel,
+    allFunnels: funnels,
+    campaign: { goal: campaignData?.goal ?? "stage_reached" },
+    page: { title: pageRow.title as string, type: pageType as ActionPageType },
+    tone,
+    messageCount: funnelState.messageCount,
+  });
+
   // Step 2: Retrieve relevant knowledge
   const retrieval = await retrieveKnowledge({
     query: leadMessage,
     tenantId,
     context: {
       businessName,
-      currentPhaseName: currentPhase.name,
+      currentPhaseName: step.name,
       campaign: campaignContext,
     },
   });
@@ -163,7 +219,7 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   const selectedImages = await selectImages({
     tenantId,
     leadMessage,
-    currentPhaseName: currentPhase.name,
+    currentPhaseName: step.name,
     retrievedChunks: retrieval.chunks,
     maxImages,
   });
@@ -180,7 +236,7 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   const systemPrompt = await buildSystemPrompt({
     tenantId,
     businessName,
-    currentPhase,
+    step,
     conversationId,
     ragChunks: retrieval.chunks,
     images: promptImages.length > 0 ? promptImages : undefined,
@@ -197,9 +253,7 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   // Step 7b: Validate action button selection
   let actionButton: { actionPageId: string; ctaText: string } | undefined;
   if (decision.actionButtonId) {
-    const isValid =
-      currentPhase.actionButtonIds !== null &&
-      currentPhase.actionButtonIds.includes(decision.actionButtonId);
+    const isValid = step.actionButtonIds.includes(decision.actionButtonId);
 
     if (isValid) {
       actionButton = {
@@ -232,9 +286,11 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
 
   // Step 11: Apply side effects
   let escalated = false;
+  let completedFunnel = false;
 
   if (decision.phaseAction === "advance") {
-    await advancePhase(conversationId, campaignId);
+    const r = await advanceFunnel(supabase, conversationId, funnels);
+    completedFunnel = r.completed && !r.advanced;
   } else if (decision.phaseAction === "escalate") {
     escalated = true;
 
@@ -265,7 +321,7 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   // "stay" is a no-op
 
   // Step 12: Increment message count
-  await incrementMessageCount(currentPhase.conversationPhaseId);
+  await incrementFunnelMessageCount(supabase, conversationId);
 
   // Step 12b: Extract knowledge from lead message (non-blocking)
   extractKnowledge({
@@ -306,9 +362,10 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     phaseAction: decision.phaseAction,
     confidence: decision.confidence,
     imageIds: validatedImageIds,
-    currentPhase: currentPhase.name,
+    currentPhase: step.name,
     escalated,
     paused: false,
+    completedFunnel,
     actionButton,
   };
 }

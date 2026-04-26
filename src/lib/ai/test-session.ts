@@ -1,30 +1,22 @@
-// src/lib/ai/test-session.ts
-import type { CurrentPhase } from "@/lib/ai/phase-machine";
+import type { CampaignFunnel } from "@/types/campaign-funnel";
+import type { ActionPageType } from "@/lib/ai/funnel-templates";
+
+export interface FunnelWithPage extends CampaignFunnel {
+  pageTitle: string;
+  pageType: ActionPageType;
+}
 
 export interface TestSession {
   id: string;
   tenantId: string;
-  campaignId: string | null; // null = default bot flow
-  currentPhaseIndex: number;
-  messageCount: number;
+  campaignId: string | null;
+  currentFunnelIndex: number;
+  funnelMessageCount: number;
   history: { role: "user" | "bot"; text: string }[];
-  phases: PhaseConfig[];
+  funnels: FunnelWithPage[];
   createdAt: number;
 }
 
-export interface PhaseConfig {
-  id: string;
-  name: string;
-  orderIndex: number;
-  maxMessages: number;
-  systemPrompt: string;
-  tone: string;
-  goals: string | null;
-  transitionHint: string | null;
-  actionButtonIds: string[] | null;
-}
-
-// Sessions expire after 30 minutes of inactivity
 const SESSION_TTL_MS = 30 * 60 * 1000;
 const MAX_SESSIONS = 1000;
 const sessions = new Map<string, TestSession>();
@@ -32,9 +24,7 @@ const sessions = new Map<string, TestSession>();
 function evictExpired(): void {
   const now = Date.now();
   for (const [key, session] of sessions) {
-    if (now - session.createdAt > SESSION_TTL_MS) {
-      sessions.delete(key);
-    }
+    if (now - session.createdAt > SESSION_TTL_MS) sessions.delete(key);
   }
 }
 
@@ -46,18 +36,17 @@ export function createSession(
   tenantId: string,
   sessionId: string,
   campaignId: string | null,
-  phases: PhaseConfig[]
+  funnels: FunnelWithPage[]
 ): TestSession {
   if (sessions.size > MAX_SESSIONS) evictExpired();
-
   const session: TestSession = {
     id: sessionId,
     tenantId,
     campaignId,
-    currentPhaseIndex: 0,
-    messageCount: 0,
+    currentFunnelIndex: 0,
+    funnelMessageCount: 0,
     history: [],
-    phases,
+    funnels,
     createdAt: Date.now(),
   };
   sessions.set(sessionKey(tenantId, sessionId), session);
@@ -80,45 +69,30 @@ export function deleteSession(tenantId: string, sessionId: string): void {
 
 export function addMessage(session: TestSession, role: "user" | "bot", text: string): void {
   session.history.push({ role, text });
-  if (role === "user") {
-    session.messageCount += 1;
+  if (role === "user") session.funnelMessageCount += 1;
+  session.createdAt = Date.now();
+}
+
+export function getCurrentFunnel(session: TestSession): FunnelWithPage | null {
+  return session.funnels[session.currentFunnelIndex] ?? null;
+}
+
+export function advanceSessionFunnel(
+  session: TestSession
+): { funnel: FunnelWithPage; advanced: boolean; completed: boolean } {
+  const last = session.funnels.length - 1;
+  if (session.currentFunnelIndex >= last) {
+    return { funnel: session.funnels[last], advanced: false, completed: true };
   }
-  session.createdAt = Date.now(); // refresh TTL
+  session.currentFunnelIndex += 1;
+  session.funnelMessageCount = 0;
+  return { funnel: session.funnels[session.currentFunnelIndex], advanced: true, completed: false };
 }
 
-export function getCurrentPhaseConfig(session: TestSession): PhaseConfig | null {
-  return session.phases[session.currentPhaseIndex] ?? null;
-}
-
-export function advanceSessionPhase(session: TestSession): PhaseConfig | null {
-  if (session.currentPhaseIndex >= session.phases.length - 1) {
-    return session.phases[session.currentPhaseIndex]; // stay at last phase
-  }
-  session.currentPhaseIndex += 1;
-  session.messageCount = 0;
-  return session.phases[session.currentPhaseIndex];
-}
-
-export function jumpToPhase(session: TestSession, phaseId: string): PhaseConfig | null {
-  const index = session.phases.findIndex((p) => p.id === phaseId);
-  if (index === -1) return null;
-  session.currentPhaseIndex = index;
-  session.messageCount = 0;
-  return session.phases[index];
-}
-
-export function phaseToCurrentPhase(phase: PhaseConfig, messageCount: number): CurrentPhase {
-  return {
-    conversationPhaseId: `test-${phase.id}`,
-    phaseId: phase.id,
-    name: phase.name,
-    orderIndex: phase.orderIndex,
-    maxMessages: phase.maxMessages,
-    systemPrompt: phase.systemPrompt,
-    tone: phase.tone,
-    goals: phase.goals,
-    transitionHint: phase.transitionHint,
-    actionButtonIds: phase.actionButtonIds,
-    messageCount,
-  };
+export function jumpToFunnel(session: TestSession, funnelId: string): FunnelWithPage | null {
+  const idx = session.funnels.findIndex((f) => f.id === funnelId);
+  if (idx === -1) return null;
+  session.currentFunnelIndex = idx;
+  session.funnelMessageCount = 0;
+  return session.funnels[idx];
 }

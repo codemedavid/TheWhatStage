@@ -10,7 +10,7 @@ vi.mock("@/lib/supabase/service", () => ({
 
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
 import type { PromptContext } from "@/lib/ai/prompt-builder";
-import type { CurrentPhase } from "@/lib/ai/phase-machine";
+import type { StepContext } from "@/lib/ai/step-context";
 import type { ChunkResult } from "@/lib/ai/vector-search";
 
 // ---------------------------------------------------------------------------
@@ -57,18 +57,17 @@ function setupMocks(
     .mockReturnValueOnce(personaChain);
 }
 
-const basePhase: CurrentPhase = {
-  conversationPhaseId: "cp-1",
-  phaseId: "phase-1",
-  name: "Greeting",
-  orderIndex: 0,
-  maxMessages: 10,
-  systemPrompt: "Welcome the lead warmly.",
+const baseStep: StepContext = {
+  name: "Step 1 of 1 — Greeting",
+  position: 0,
+  total: 1,
+  instructions: "Chat rules for this step:\n- Welcome the lead warmly.",
   tone: "friendly",
-  goals: "Open the conversation and build rapport",
+  goal: "Open the conversation and build rapport",
   transitionHint: "Advance when lead responds positively",
-  actionButtonIds: null,
   messageCount: 3,
+  maxMessages: 10,
+  actionButtonIds: [],
 };
 
 const baseChunks: ChunkResult[] = [
@@ -90,7 +89,7 @@ function makeContext(overrides: Partial<PromptContext> = {}): PromptContext {
   return {
     tenantId: "tenant-abc",
     businessName: "Acme Corp",
-    currentPhase: basePhase,
+    step: baseStep,
     conversationId: "conv-123",
     ragChunks: baseChunks,
     ...overrides,
@@ -119,12 +118,12 @@ describe("buildSystemPrompt", () => {
     expect(prompt.toLowerCase()).not.toContain("act like alex");
   });
 
-  it("frames current phase as advisory guidance instead of a rigid script", async () => {
+  it("frames current step as advisory guidance instead of a rigid script", async () => {
     setupMocks();
 
     const prompt = await buildSystemPrompt(makeContext());
 
-    expect(prompt).toContain("The phase is guidance, not a rule");
+    expect(prompt).toContain("The step is guidance, not a rule");
     expect(prompt).toContain("respond to the lead's intent first");
     expect(prompt).toContain("You may advance when the conversation naturally moves forward");
   });
@@ -183,16 +182,16 @@ describe("buildSystemPrompt", () => {
     expect(prompt).not.toContain("BOT RULES");
   });
 
-  it("layer 3 — current phase details included", async () => {
+  it("layer 3 — current step details included", async () => {
     setupMocks();
     const prompt = await buildSystemPrompt(makeContext());
-    expect(prompt).toContain("WHERE YOU ARE IN THE CONVERSATION");
-    expect(prompt).toContain("Phase: Greeting");
+    expect(prompt).toContain("WHERE YOU ARE IN THE FUNNEL");
+    expect(prompt).toContain("Step 1 of 1 — Greeting");
     expect(prompt).toContain("Welcome the lead warmly.");
     expect(prompt).toContain("friendly");
   });
 
-  it("layer 3 — phase goals and transition hint are included", async () => {
+  it("layer 3 — step goal and transition hint are included", async () => {
     setupMocks();
     const prompt = await buildSystemPrompt(makeContext());
     expect(prompt).toContain("Open the conversation and build rapport");
@@ -227,18 +226,15 @@ describe("buildSystemPrompt", () => {
   });
 
   it("layer 4 — long conversation history is truncated to ~8000 chars", async () => {
-    // Create 20 messages each with ~1000 chars of text
     const longMessages = Array.from({ length: 20 }, (_, i) => ({
       direction: i % 2 === 0 ? "in" : "out",
       text: "x".repeat(1000),
     }));
     setupMocks([], longMessages);
     const prompt = await buildSystemPrompt(makeContext());
-    // Extract the conversation history section
     const historyStart = prompt.indexOf("--- CONVERSATION HISTORY ---");
     const historyEnd = prompt.indexOf("--- RETRIEVED KNOWLEDGE ---");
     const historySection = prompt.slice(historyStart, historyEnd);
-    // The history section should not exceed 8000 chars plus some overhead for headers
     expect(historySection.length).toBeLessThan(8500);
   });
 
@@ -320,19 +316,12 @@ describe("buildSystemPrompt", () => {
         ],
       })
     );
-    // Layer 1 - base persona (no header, inline)
     expect(prompt).toContain("Acme Corp");
-    // Layer 2 - bot rules
     expect(prompt).toContain("BOT RULES");
-    // Layer 3 - current phase
-    expect(prompt).toContain("WHERE YOU ARE IN THE CONVERSATION");
-    // Layer 4 - conversation history
+    expect(prompt).toContain("WHERE YOU ARE IN THE FUNNEL");
     expect(prompt).toContain("CONVERSATION HISTORY");
-    // Layer 5 - retrieved knowledge
     expect(prompt).toContain("RETRIEVED KNOWLEDGE");
-    // Layer 6 - available images
     expect(prompt).toContain("AVAILABLE IMAGES");
-    // Layer 7 - response format
     expect(prompt).toContain("RESPONSE FORMAT");
   });
 
@@ -375,25 +364,24 @@ describe("buildSystemPrompt", () => {
     expect(prompt).not.toContain("--- CAMPAIGN RULES ---");
   });
 
-  it("phase with null goals and transitionHint does not crash", async () => {
+  it("step with null goal and transitionHint does not crash", async () => {
     setupMocks();
-    const phaseWithNulls: CurrentPhase = {
-      ...basePhase,
-      goals: null,
+    const stepWithNulls: StepContext = {
+      ...baseStep,
+      goal: null,
       transitionHint: null,
     };
     const prompt = await buildSystemPrompt(
-      makeContext({ currentPhase: phaseWithNulls })
+      makeContext({ step: stepWithNulls })
     );
-    expect(prompt).toContain("Phase: Greeting");
+    expect(prompt).toContain("Step 1 of 1 — Greeting");
     expect(prompt).not.toContain("undefined");
   });
 
   describe("action button prompt section", () => {
-    it("includes available action buttons when phase has actionButtonIds", async () => {
+    it("includes available action buttons when step has actionButtonIds", async () => {
       setupMocks();
 
-      // 4th mockFrom call will be action_pages
       const actionPagesChain = {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -413,24 +401,23 @@ describe("buildSystemPrompt", () => {
       };
       mockFrom.mockReturnValueOnce(actionPagesChain);
 
-      const phase: CurrentPhase = {
-        conversationPhaseId: "cp-1",
-        phaseId: "p-1",
-        name: "Qualification",
-        orderIndex: 0,
-        maxMessages: 5,
-        systemPrompt: "Qualify the lead",
+      const step: StepContext = {
+        name: "Step 1 of 1 — Qualification",
+        position: 0,
+        total: 1,
+        instructions: "Chat rules for this step:\n- Qualify the lead.",
         tone: "friendly",
-        goals: "Understand their needs",
+        goal: "Understand their needs",
         transitionHint: null,
-        actionButtonIds: ["ap-1"],
         messageCount: 2,
+        maxMessages: 5,
+        actionButtonIds: ["ap-1"],
       };
 
       const ctx: PromptContext = {
         tenantId: "t-1",
         businessName: "Test Biz",
-        currentPhase: phase,
+        step,
         conversationId: "conv-1",
         ragChunks: [],
       };
@@ -442,27 +429,26 @@ describe("buildSystemPrompt", () => {
       expect(prompt).toContain("Book now!");
     });
 
-    it("does not include action buttons section when phase has no actionButtonIds", async () => {
+    it("does not include action buttons section when step has no actionButtonIds", async () => {
       setupMocks();
 
-      const phase: CurrentPhase = {
-        conversationPhaseId: "cp-1",
-        phaseId: "p-1",
-        name: "Qualification",
-        orderIndex: 0,
-        maxMessages: 5,
-        systemPrompt: "Qualify the lead",
+      const step: StepContext = {
+        name: "Step 1 of 1 — Qualification",
+        position: 0,
+        total: 1,
+        instructions: "Chat rules for this step:\n- Qualify the lead.",
         tone: "friendly",
-        goals: null,
+        goal: null,
         transitionHint: null,
-        actionButtonIds: null,
         messageCount: 0,
+        maxMessages: 5,
+        actionButtonIds: [],
       };
 
       const ctx: PromptContext = {
         tenantId: "t-1",
         businessName: "Test Biz",
-        currentPhase: phase,
+        step,
         conversationId: "conv-1",
         ragChunks: [],
       };

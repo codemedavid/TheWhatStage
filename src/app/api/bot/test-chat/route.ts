@@ -6,27 +6,33 @@ import { retrieveKnowledge } from "@/lib/ai/retriever";
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
 import { generateResponse } from "@/lib/ai/llm-client";
 import { parseDecision } from "@/lib/ai/decision-parser";
+import { listFunnelsForCampaign } from "@/lib/db/campaign-funnels";
 import {
-  createSession,
-  getSession,
-  deleteSession,
+  ACTION_PAGE_TYPES,
+  defaultRulesForPageType,
+  type ActionPageType,
+} from "@/lib/ai/funnel-templates";
+import { funnelToStep } from "@/lib/ai/step-context";
+import {
   addMessage,
-  getCurrentPhaseConfig,
-  advanceSessionPhase,
-  jumpToPhase,
-  phaseToCurrentPhase,
-  type PhaseConfig,
+  advanceSessionFunnel,
+  createSession,
+  deleteSession,
+  getCurrentFunnel,
+  getSession,
+  jumpToFunnel,
+  type FunnelWithPage,
 } from "@/lib/ai/test-session";
 
 const schema = z.object({
   message: z.string().min(1).max(500),
   sessionId: z.string().min(1).max(100),
   campaignId: z.string().uuid().nullable().default(null),
-  jumpToPhaseId: z.string().uuid().optional(),
+  jumpToFunnelId: z.string().uuid().optional(),
+  simulateActionCompleted: z.boolean().optional(),
   reset: z.boolean().optional(),
 });
 
-// Simple in-memory rate limiter (per-tenant, 30 req/min)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 30;
 const RATE_WINDOW_MS = 60_000;
@@ -35,72 +41,76 @@ const MAX_RATE_LIMIT_ENTRIES = 10_000;
 function checkRateLimit(tenantId: string): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(tenantId);
-
   if (!entry || now > entry.resetAt) {
     if (rateLimitMap.size > MAX_RATE_LIMIT_ENTRIES) {
-      for (const [key, val] of rateLimitMap) {
-        if (now > val.resetAt) rateLimitMap.delete(key);
-      }
+      for (const [key, val] of rateLimitMap) if (now > val.resetAt) rateLimitMap.delete(key);
     }
     rateLimitMap.set(tenantId, { count: 1, resetAt: now + RATE_WINDOW_MS });
     return true;
   }
-
   if (entry.count >= RATE_LIMIT) return false;
   entry.count += 1;
   return true;
 }
 
-async function loadPhases(tenantId: string, campaignId: string | null): Promise<PhaseConfig[]> {
-  const service = createServiceClient();
+async function loadFunnelsWithPages(
+  service: ReturnType<typeof createServiceClient>,
+  campaignId: string
+): Promise<FunnelWithPage[]> {
+  const funnels = await listFunnelsForCampaign(service as never, campaignId);
+  if (funnels.length === 0) return [];
+  const pageIds = funnels.map((f) => f.actionPageId);
+  const { data: pages } = await service
+    .from("action_pages")
+    .select("id, title, type")
+    .in("id", pageIds);
+  const map = new Map((pages ?? []).map((p) => [p.id as string, p as { id: string; title: string; type: string }]));
+  return funnels.map((f) => {
+    const page = map.get(f.actionPageId);
+    if (!page) throw new Error(`Action page missing for funnel ${f.id}`);
+    if (!ACTION_PAGE_TYPES.includes(page.type as ActionPageType)) {
+      throw new Error(`Unsupported page type: ${page.type}`);
+    }
+    return { ...f, pageTitle: page.title, pageType: page.type as ActionPageType };
+  });
+}
 
-  if (campaignId) {
-    const { data } = await service
-      .from("campaign_phases")
-      .select("id, name, order_index, max_messages, system_prompt, tone, goals, transition_hint, action_button_ids")
-      .eq("campaign_id", campaignId)
-      .eq("tenant_id", tenantId)
-      .order("order_index", { ascending: true });
-
-    return (data ?? []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      orderIndex: p.order_index,
-      maxMessages: p.max_messages,
-      systemPrompt: p.system_prompt,
-      tone: p.tone ?? "friendly",
-      goals: p.goals,
-      transitionHint: p.transition_hint,
-      actionButtonIds: p.action_button_ids,
-    }));
-  }
-
-  // Default bot flow phases
+async function autoSeedFunnel(
+  service: ReturnType<typeof createServiceClient>,
+  tenantId: string
+): Promise<FunnelWithPage[]> {
   const { data } = await service
-    .from("bot_flow_phases")
-    .select("id, name, order_index, max_messages, system_prompt, tone, goals, transition_hint, action_button_ids")
+    .from("action_pages")
+    .select("id, type, title, published")
     .eq("tenant_id", tenantId)
-    .order("order_index", { ascending: true });
-
-  return (data ?? []).map((p) => ({
-    id: p.id,
-    name: p.name,
-    orderIndex: p.order_index,
-    maxMessages: p.max_messages,
-    systemPrompt: p.system_prompt,
-    tone: p.tone ?? "friendly",
-    goals: p.goals,
-    transitionHint: p.transition_hint,
-    actionButtonIds: p.action_button_ids,
-  }));
+    .eq("published", true)
+    .order("created_at", { ascending: true });
+  if (!data || data.length === 0) return [];
+  const page = data[0] as { id: string; type: string; title: string };
+  if (!ACTION_PAGE_TYPES.includes(page.type as ActionPageType)) return [];
+  const pageType = page.type as ActionPageType;
+  const now = new Date().toISOString();
+  return [
+    {
+      id: "auto-seed",
+      campaignId: "auto-seed",
+      tenantId,
+      position: 0,
+      actionPageId: page.id,
+      pageDescription: null,
+      chatRules: defaultRulesForPageType(pageType),
+      createdAt: now,
+      updatedAt: now,
+      pageTitle: page.title,
+      pageType,
+    },
+  ];
 }
 
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
   const parsed = schema.safeParse(body);
@@ -119,88 +129,80 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No tenant membership" }, { status: 403 });
   }
 
-  const tenantId = membership.tenant_id;
-  const { message, sessionId, campaignId, jumpToPhaseId, reset } = parsed.data;
+  const tenantId = membership.tenant_id as string;
+  const { message, sessionId, campaignId, jumpToFunnelId, simulateActionCompleted, reset } = parsed.data;
 
   if (!checkRateLimit(tenantId)) {
     return NextResponse.json({ error: "Rate limit exceeded. Try again in a minute." }, { status: 429 });
   }
 
-  // Handle reset
   if (reset) {
     deleteSession(tenantId, sessionId);
     return NextResponse.json({ status: "reset" });
   }
 
-  // Get or create session
   let session = getSession(tenantId, sessionId);
   if (!session) {
-    const phases = await loadPhases(tenantId, campaignId);
-    if (phases.length === 0) {
-      return NextResponse.json({
-        error: "No phases configured. Add phases to your bot flow or campaign first.",
-      }, { status: 400 });
+    const funnels = campaignId
+      ? await loadFunnelsWithPages(service, campaignId)
+      : await autoSeedFunnel(service, tenantId);
+    if (funnels.length === 0) {
+      return NextResponse.json(
+        { error: campaignId
+            ? "This campaign has no funnels — rebuild via the AI builder."
+            : "No published action pages — build one first." },
+        { status: 400 }
+      );
     }
-    session = createSession(tenantId, sessionId, campaignId, phases);
+    session = createSession(tenantId, sessionId, campaignId, funnels);
   }
 
-  // Handle phase jump
-  if (jumpToPhaseId) {
-    const jumped = jumpToPhase(session, jumpToPhaseId);
-    if (!jumped) {
-      return NextResponse.json({ error: "Phase not found" }, { status: 404 });
-    }
-    return NextResponse.json({
-      status: "jumped",
-      currentPhase: jumped,
-      phaseIndex: session.currentPhaseIndex,
-      totalPhases: session.phases.length,
-    });
+  if (jumpToFunnelId) {
+    const jumped = jumpToFunnel(session, jumpToFunnelId);
+    if (!jumped) return NextResponse.json({ error: "Funnel not found" }, { status: 404 });
   }
 
-  // Get current phase
-  const currentPhaseConfig = getCurrentPhaseConfig(session);
-  if (!currentPhaseConfig) {
-    return NextResponse.json({ error: "No active phase" }, { status: 500 });
+  if (simulateActionCompleted) {
+    advanceSessionFunnel(session);
   }
 
-  // Fetch tenant + campaign info in parallel
-  const tenantPromise = service
-    .from("tenants")
-    .select("name")
-    .eq("id", tenantId)
-    .single();
+  const currentFunnel = getCurrentFunnel(session);
+  if (!currentFunnel) return NextResponse.json({ error: "No active funnel" }, { status: 500 });
 
+  const tenantPromise = service.from("tenants").select("name, persona_tone").eq("id", tenantId).single();
   const campaignPromise = session.campaignId
-    ? service
-        .from("campaigns")
-        .select("name, description, goal")
-        .eq("id", session.campaignId)
-        .single()
+    ? service.from("campaigns").select("name, description, goal, campaign_rules").eq("id", session.campaignId).single()
     : Promise.resolve({ data: null });
 
-  const [{ data: tenant }, { data: campaignData }] = await Promise.all([
-    tenantPromise,
-    campaignPromise,
-  ]);
-
-  const businessName = tenant?.name ?? "Your Business";
+  const [{ data: tenant }, { data: campaignData }] = await Promise.all([tenantPromise, campaignPromise]);
+  const businessName = (tenant as { name?: string } | null)?.name ?? "Your Business";
+  const personaTone = (tenant as { persona_tone?: string } | null)?.persona_tone ?? "friendly";
   const campaignContext = campaignData
-    ? { name: campaignData.name, description: campaignData.description, goal: campaignData.goal }
+    ? {
+        name: (campaignData as { name: string }).name,
+        description: (campaignData as { description: string | null }).description,
+        goal: (campaignData as { goal: string }).goal,
+        campaignRules: ((campaignData as { campaign_rules: string[] | null }).campaign_rules ?? []) as string[],
+      }
     : undefined;
 
-  // Add user message to history
   addMessage(session, "user", message);
 
-  // Retrieve knowledge
   const retrieval = await retrieveKnowledge({ query: message, tenantId });
 
-  // Build system prompt with real phase
-  const currentPhase = phaseToCurrentPhase(currentPhaseConfig, session.messageCount);
+  const step = funnelToStep({
+    funnel: currentFunnel,
+    allFunnels: session.funnels,
+    campaign: { goal: campaignContext?.goal ?? "stage_reached" },
+    page: { title: currentFunnel.pageTitle, type: currentFunnel.pageType },
+    tone: personaTone,
+    messageCount: session.funnelMessageCount,
+  });
+
   const systemPrompt = await buildSystemPrompt({
     tenantId,
     businessName,
-    currentPhase,
+    step,
     conversationId: `test-${sessionId}`,
     ragChunks: retrieval.chunks,
     testMode: false,
@@ -210,30 +212,28 @@ export async function POST(request: Request) {
 
   const llmResponse = await generateResponse(systemPrompt, message);
   const decision = parseDecision(llmResponse.content);
-
-  // Add bot response to history
   addMessage(session, "bot", decision.message);
 
-  // Handle phase advancement
-  let phaseAdvanced = false;
-  let newPhase: PhaseConfig | null = null;
+  let funnelAdvanced = false;
   if (decision.phaseAction === "advance") {
-    newPhase = advanceSessionPhase(session);
-    phaseAdvanced = newPhase !== null && newPhase.id !== currentPhaseConfig.id;
+    const r = advanceSessionFunnel(session);
+    funnelAdvanced = r.advanced;
   }
 
+  const after = getCurrentFunnel(session)!;
   return NextResponse.json({
     reply: decision.message,
     confidence: decision.confidence,
     phaseAction: decision.phaseAction,
-    phaseAdvanced,
-    currentPhase: {
-      id: getCurrentPhaseConfig(session)!.id,
-      name: getCurrentPhaseConfig(session)!.name,
-      index: session.currentPhaseIndex,
-      total: session.phases.length,
-      messageCount: session.messageCount,
-      maxMessages: getCurrentPhaseConfig(session)!.maxMessages,
+    funnelAdvanced,
+    currentFunnel: {
+      id: after.id,
+      pageTitle: after.pageTitle,
+      pageType: after.pageType,
+      index: session.currentFunnelIndex,
+      total: session.funnels.length,
+      messageCount: session.funnelMessageCount,
+      maxMessages: 8,
     },
     queryTarget: retrieval.queryTarget,
     retrievalPass: retrieval.retrievalPass,

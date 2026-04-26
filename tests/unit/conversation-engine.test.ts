@@ -1,9 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/ai/phase-machine", () => ({
-  getCurrentPhase: vi.fn(),
-  advancePhase: vi.fn(),
-  incrementMessageCount: vi.fn(),
+vi.mock("@/lib/db/campaign-funnels", () => ({
+  listFunnelsForCampaign: vi.fn(async () => [
+    { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+  ]),
+}));
+vi.mock("@/lib/ai/funnel-runtime", () => ({
+  getOrInitFunnelState: vi.fn(async () => ({
+    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    position: 0,
+    messageCount: 0,
+  })),
+  advanceFunnel: vi.fn(async () => ({
+    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    position: 0, advanced: false, completed: true,
+  })),
+  incrementFunnelMessageCount: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/ai/retriever", () => ({
@@ -66,7 +78,7 @@ vi.mock("@/lib/supabase/service", () => ({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
-                data: { max_images_per_response: 2 },
+                data: { max_images_per_response: 2, persona_tone: "friendly" },
                 error: null,
               }),
             }),
@@ -84,6 +96,18 @@ vi.mock("@/lib/supabase/service", () => ({
                   goal: "form_submit",
                   campaign_rules: [],
                 },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "action_pages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { title: "Page", type: "form" },
                 error: null,
               }),
             }),
@@ -126,7 +150,8 @@ vi.mock("@/lib/supabase/service", () => ({
   })),
 }));
 
-import { getCurrentPhase, advancePhase, incrementMessageCount } from "@/lib/ai/phase-machine";
+import { listFunnelsForCampaign } from "@/lib/db/campaign-funnels";
+import { getOrInitFunnelState, advanceFunnel, incrementFunnelMessageCount } from "@/lib/ai/funnel-runtime";
 import { retrieveKnowledge } from "@/lib/ai/retriever";
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
 import { generateResponse } from "@/lib/ai/llm-client";
@@ -136,9 +161,10 @@ import { parseResponse } from "@/lib/ai/response-parser";
 import { createServiceClient } from "@/lib/supabase/service";
 import { handleMessage } from "@/lib/ai/conversation-engine";
 
-const mockGetCurrentPhase = vi.mocked(getCurrentPhase);
-const mockAdvancePhase = vi.mocked(advancePhase);
-const mockIncrementMessageCount = vi.mocked(incrementMessageCount);
+const mockListFunnelsForCampaign = vi.mocked(listFunnelsForCampaign);
+const mockGetOrInitFunnelState = vi.mocked(getOrInitFunnelState);
+const mockAdvanceFunnel = vi.mocked(advanceFunnel);
+const mockIncrementFunnelMessageCount = vi.mocked(incrementFunnelMessageCount);
 const mockRetrieveKnowledge = vi.mocked(retrieveKnowledge);
 const mockBuildSystemPrompt = vi.mocked(buildSystemPrompt);
 const mockGenerateResponse = vi.mocked(generateResponse);
@@ -146,18 +172,10 @@ const mockParseDecision = vi.mocked(parseDecision);
 const mockSelectImages = vi.mocked(selectImages);
 const mockParseResponse = vi.mocked(parseResponse);
 
-const defaultPhase = {
-  conversationPhaseId: "cp-1",
-  phaseId: "phase-1",
-  name: "Greet",
-  orderIndex: 0,
-  maxMessages: 1,
-  systemPrompt: "Welcome the lead.",
-  tone: "friendly",
-  goals: "Open conversation",
-  transitionHint: "Advance when lead responds",
-  actionButtonIds: null,
-  messageCount: 0,
+const defaultFunnel = {
+  id: "f0", campaignId: "c1", tenantId: "t1", position: 0,
+  actionPageId: "p0", pageDescription: null, chatRules: ["r"],
+  createdAt: "n", updatedAt: "n",
 };
 
 const defaultInput = {
@@ -170,7 +188,10 @@ const defaultInput = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockGetCurrentPhase.mockResolvedValue(defaultPhase);
+  mockListFunnelsForCampaign.mockResolvedValue([defaultFunnel]);
+  mockGetOrInitFunnelState.mockResolvedValue({ funnel: defaultFunnel, position: 0, messageCount: 0 });
+  mockAdvanceFunnel.mockResolvedValue({ funnel: defaultFunnel, position: 0, advanced: false, completed: true });
+  mockIncrementFunnelMessageCount.mockResolvedValue(undefined);
   mockRetrieveKnowledge.mockResolvedValue({
     status: "success",
     chunks: [{ id: "c1", content: "Info", similarity: 0.8, metadata: {} }],
@@ -190,35 +211,30 @@ beforeEach(() => {
     actionButtonId: null,
     ctaText: null,
   });
-  // New mocks for image-selector and response-parser
   mockSelectImages.mockResolvedValue([]);
-  // parseResponse passes through decision.message as cleanMessage by default
   mockParseResponse.mockImplementation((msg: string) => ({
     cleanMessage: msg,
     extractedImageIds: [],
   }));
-  mockIncrementMessageCount.mockResolvedValue(undefined);
 });
 
 describe("handleMessage", () => {
   it("runs the full pipeline and returns correct output, calling all dependencies", async () => {
     const result = await handleMessage(defaultInput);
 
-    // All pipeline steps called
-    expect(mockGetCurrentPhase).toHaveBeenCalledWith("conv-1", "campaign-id-1");
+    expect(mockGetOrInitFunnelState).toHaveBeenCalledWith(
+      expect.anything(), "conv-1", "campaign-id-1", [defaultFunnel]
+    );
     expect(mockRetrieveKnowledge).toHaveBeenCalledWith(
       expect.objectContaining({
         query: "Hello, I need help",
         tenantId: "tenant-1",
         context: expect.objectContaining({
           businessName: "Acme Corp",
-          currentPhaseName: "Greet",
-          campaign: {
+          campaign: expect.objectContaining({
             name: "Primary Offer",
-            description: "A lead generation service for local businesses.",
             goal: "form_submit",
-            campaignRules: [],
-          },
+          }),
         }),
       })
     );
@@ -226,30 +242,27 @@ describe("handleMessage", () => {
       expect.objectContaining({
         tenantId: "tenant-1",
         businessName: "Acme Corp",
-        currentPhase: defaultPhase,
+        step: expect.objectContaining({ name: "Step 1 of 1 — Page" }),
         conversationId: "conv-1",
         ragChunks: [{ id: "c1", content: "Info", similarity: 0.8, metadata: {} }],
-        campaign: {
+        campaign: expect.objectContaining({
           name: "Primary Offer",
-          description: "A lead generation service for local businesses.",
           goal: "form_submit",
-          campaignRules: [],
-        },
+        }),
       })
     );
     expect(mockGenerateResponse).toHaveBeenCalledWith("system prompt", "Hello, I need help");
     expect(mockParseDecision).toHaveBeenCalledWith(
       '{"message":"Hello!","phase_action":"stay","confidence":0.85,"image_ids":[]}'
     );
-    expect(mockIncrementMessageCount).toHaveBeenCalledWith("cp-1");
+    expect(mockIncrementFunnelMessageCount).toHaveBeenCalledWith(expect.anything(), "conv-1");
 
-    // Output shape
     expect(result).toMatchObject({
       message: "Hello!",
       phaseAction: "stay",
       confidence: 0.85,
       imageIds: [],
-      currentPhase: "Greet",
+      currentPhase: "Step 1 of 1 — Page",
       escalated: false,
       paused: false,
     });
@@ -267,30 +280,25 @@ describe("handleMessage", () => {
         tenantId: "tenant-1",
         context: expect.objectContaining({
           businessName: "Acme Corp",
-          currentPhaseName: "Greet",
-          campaign: {
+          campaign: expect.objectContaining({
             name: "Primary Offer",
-            description: "A lead generation service for local businesses.",
             goal: "form_submit",
-            campaignRules: [],
-          },
+          }),
         }),
       })
     );
 
     expect(mockBuildSystemPrompt).toHaveBeenCalledWith(
       expect.objectContaining({
-        campaign: {
+        campaign: expect.objectContaining({
           name: "Primary Offer",
-          description: "A lead generation service for local businesses.",
           goal: "form_submit",
-          campaignRules: [],
-        },
+        }),
       })
     );
   });
 
-  it("calls advancePhase when phaseAction is 'advance'", async () => {
+  it("calls advanceFunnel when phaseAction is 'advance'", async () => {
     mockParseDecision.mockReturnValue({
       message: "Let's move on!",
       phaseAction: "advance",
@@ -299,13 +307,14 @@ describe("handleMessage", () => {
       actionButtonId: null,
       ctaText: null,
     });
-    mockAdvancePhase.mockResolvedValue({ ...defaultPhase, name: "Qualify", orderIndex: 1, conversationPhaseId: "cp-2" });
+    mockAdvanceFunnel.mockResolvedValue({ funnel: defaultFunnel, position: 1, advanced: true, completed: false });
 
     const result = await handleMessage(defaultInput);
 
-    expect(mockAdvancePhase).toHaveBeenCalledWith("conv-1", "campaign-id-1");
+    expect(mockAdvanceFunnel).toHaveBeenCalledWith(expect.anything(), "conv-1", [defaultFunnel]);
     expect(result.phaseAction).toBe("advance");
     expect(result.escalated).toBe(false);
+    expect(result.completedFunnel).toBe(false);
   });
 
   it("sets escalated=true and flags conversation when phaseAction is 'escalate'", async () => {
@@ -320,10 +329,9 @@ describe("handleMessage", () => {
 
     const result = await handleMessage(defaultInput);
 
-    expect(mockAdvancePhase).not.toHaveBeenCalled();
+    expect(mockAdvanceFunnel).not.toHaveBeenCalled();
     expect(result.escalated).toBe(true);
     expect(result.phaseAction).toBe("escalate");
-    // Supabase update should have been called with enriched escalation fields
     expect(mockUpdate).toHaveBeenCalledWith({
       needs_human: true,
       escalation_reason: "llm_decision",
@@ -345,7 +353,6 @@ describe("handleMessage", () => {
 
     expect(result.message).not.toBe("You can find that on our website.");
     expect(result.message.length).toBeGreaterThan("You can find that on our website.".length);
-    // Should start with a hedging phrase (message first letter lowercased after prepend)
     const hedgingPhrases = [
       "I believe",
       "If I'm not mistaken,",
@@ -399,7 +406,6 @@ describe("handleMessage", () => {
       ctaText: null,
     });
 
-    // Override supabase to validate these image IDs for this test
     vi.mocked(createServiceClient).mockReturnValueOnce({
       from: vi.fn((table: string) => {
         if (table === "conversations") {
@@ -420,7 +426,7 @@ describe("handleMessage", () => {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
                 single: vi.fn().mockResolvedValue({
-                  data: { max_images_per_response: 3 },
+                  data: { max_images_per_response: 3, persona_tone: "friendly" },
                   error: null,
                 }),
               }),
@@ -438,6 +444,18 @@ describe("handleMessage", () => {
                     goal: "form_submit",
                     campaign_rules: [],
                   },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "action_pages") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { title: "Page", type: "form" },
                   error: null,
                 }),
               }),
@@ -523,20 +541,14 @@ describe("handleMessage", () => {
       phaseAction: "stay",
       confidence: 0.9,
       imageIds: [],
-      actionButtonId: "ap-1",
+      actionButtonId: "p0",
       ctaText: "Book your spot now!",
-    });
-
-    // Override phase to include actionButtonIds
-    mockGetCurrentPhase.mockResolvedValue({
-      ...defaultPhase,
-      actionButtonIds: ["ap-1", "ap-2"],
     });
 
     const result = await handleMessage(defaultInput);
 
     expect(result.actionButton).toEqual({
-      actionPageId: "ap-1",
+      actionPageId: "p0",
       ctaText: "Book your spot now!",
     });
   });
@@ -556,7 +568,7 @@ describe("handleMessage", () => {
     expect(result.actionButton).toBeUndefined();
   });
 
-  it("ignores action_button_id not in phase actionButtonIds", async () => {
+  it("ignores action_button_id not in funnel actionButtonIds", async () => {
     mockParseDecision.mockReturnValue({
       message: "Check this!",
       phaseAction: "stay",
@@ -564,11 +576,6 @@ describe("handleMessage", () => {
       imageIds: [],
       actionButtonId: "ap-invalid",
       ctaText: null,
-    });
-
-    mockGetCurrentPhase.mockResolvedValue({
-      ...defaultPhase,
-      actionButtonIds: ["ap-1"],
     });
 
     const result = await handleMessage(defaultInput);
@@ -582,20 +589,31 @@ describe("handleMessage", () => {
       phaseAction: "stay",
       confidence: 0.9,
       imageIds: [],
-      actionButtonId: "ap-1",
+      actionButtonId: "p0",
       ctaText: null,
-    });
-
-    mockGetCurrentPhase.mockResolvedValue({
-      ...defaultPhase,
-      actionButtonIds: ["ap-1"],
     });
 
     const result = await handleMessage(defaultInput);
 
     expect(result.actionButton).toEqual({
-      actionPageId: "ap-1",
+      actionPageId: "p0",
       ctaText: "",
     });
+  });
+
+  it("returns completedFunnel=true when advancing the last funnel step", async () => {
+    mockParseDecision.mockReturnValue({
+      message: "All done!",
+      phaseAction: "advance",
+      confidence: 0.9,
+      imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
+    });
+    mockAdvanceFunnel.mockResolvedValue({ funnel: defaultFunnel, position: 0, advanced: false, completed: true });
+
+    const result = await handleMessage(defaultInput);
+
+    expect(result.completedFunnel).toBe(true);
   });
 });
