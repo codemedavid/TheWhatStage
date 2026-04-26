@@ -1,0 +1,119 @@
+<h2>Design — Section 1: Data Model</h2>
+<p class="subtitle">New tables and how they replace / extend the existing schema</p>
+
+<div class="section">
+  <h3>New Tables</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;border-left:3px solid #6366f1">
+      <p class="label">campaigns</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        id, tenant_id<br>
+        name, description<br>
+        goal: 'form_submit' | 'appointment_booked' | 'purchase' | 'stage_reached'<br>
+        goal_config: jsonb<br>
+        is_primary: boolean<br>
+        status: 'draft' | 'active' | 'paused' | 'archived'<br>
+        follow_up_delay_minutes: int (default 120)<br>
+        follow_up_message: text<br>
+        created_at, updated_at
+      </code>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;border-left:3px solid #8b5cf6">
+      <p class="label">campaign_phases (replaces bot_flow_phases)</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        id, campaign_id, tenant_id<br>
+        name, order_index<br>
+        max_messages (soft hint)<br>
+        system_prompt, tone, goals<br>
+        transition_hint<br>
+        action_button_ids: uuid[]<br>
+        image_attachment_ids: uuid[]<br>
+        created_at
+      </code>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;border-left:3px solid #06b6d4">
+      <p class="label">lead_campaign_assignments</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        id<br>
+        lead_id → leads (unique — one per lead)<br>
+        campaign_id → campaigns<br>
+        assigned_at
+      </code>
+      <p style="font-size:12px;margin-top:8px;color:var(--text-secondary)">Permanent sticky assignment. Created on first message.</p>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;border-left:3px solid #f59e0b">
+      <p class="label">experiments</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        id, tenant_id<br>
+        name<br>
+        status: 'draft' | 'running' | 'paused' | 'completed'<br>
+        started_at, ended_at<br>
+        winner_campaign_id → campaigns<br>
+        min_sample_size: int (default 50)<br>
+        created_at
+      </code>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;border-left:3px solid #f59e0b">
+      <p class="label">experiment_campaigns (join)</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        experiment_id → experiments<br>
+        campaign_id → campaigns<br>
+        weight: int (normalized %)<br>
+        PK: (experiment_id, campaign_id)
+      </code>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;border-left:3px solid #10b981">
+      <p class="label">campaign_conversions</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        id<br>
+        campaign_id → campaigns<br>
+        lead_id → leads<br>
+        converted_at<br>
+        metadata: jsonb (order_id, appt_id, etc.)
+      </code>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h3>Modified Tables</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;border-left:3px solid #ef4444">
+      <p class="label">conversation_phases — add columns</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        + exited_at: timestamptz<br>
+        + exit_reason: 'advanced' | 'dropped' | 'converted' | 'human_handoff'
+      </code>
+      <p style="font-size:12px;margin-top:8px;color:var(--text-secondary)">Also: phase_id reference changes from <code>bot_flow_phases → campaign_phases</code></p>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;border-left:3px solid #ef4444">
+      <p class="label">bot_flow_phases — deprecated</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        Migration: copy rows → campaign_phases<br>
+        under auto-created "Default Campaign"<br>
+        per tenant
+      </code>
+      <p style="font-size:12px;margin-top:8px;color:var(--text-secondary)">Old table kept temporarily, dropped after migration verified.</p>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="padding:16px;background:var(--surface-2);border-radius:8px;border-left:3px solid #6366f1">
+  <p class="label">Assignment logic on first message</p>
+  <p style="margin:0;font-size:13px">
+    1. Lead sends first message → check <code>lead_campaign_assignments</code><br>
+    2. If none: check for a running <code>experiment</code> → pick campaign by weighted random → insert assignment<br>
+    3. If no experiment: assign to the tenant's <code>is_primary</code> campaign → insert assignment<br>
+    4. All subsequent messages → always load phases from assigned campaign
+  </p>
+</div>

@@ -1,0 +1,175 @@
+<h2>Design — Section 3: Metrics & Analytics</h2>
+<p class="subtitle">Phase funnel, drop-off detection, and campaign conversion tracking</p>
+
+<div class="section">
+  <h3>Campaign Metrics Tab — Phase Funnel</h3>
+  <div class="mockup" style="margin-top:12px">
+    <div class="mockup-header">Campaign Editor → Metrics Tab</div>
+    <div class="mockup-body" style="font-size:13px">
+
+      <!-- Summary row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+        <div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700">248</div>
+          <div style="font-size:11px;color:var(--text-secondary)">Total leads assigned</div>
+        </div>
+        <div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:#10b981">32%</div>
+          <div style="font-size:11px;color:var(--text-secondary)">Conversion rate</div>
+        </div>
+        <div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700">2.1</div>
+          <div style="font-size:11px;color:var(--text-secondary)">Avg phases to convert</div>
+        </div>
+        <div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:#f59e0b">41%</div>
+          <div style="font-size:11px;color:var(--text-secondary)">Phase 2 drop-off (highest)</div>
+        </div>
+      </div>
+
+      <!-- Phase funnel -->
+      <p class="label" style="margin-bottom:10px">Phase-by-phase funnel</p>
+
+      <!-- Phase 1 -->
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="background:#6366f1;color:white;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">1</span>
+            <strong>Warm-Up</strong>
+          </div>
+          <div style="display:flex;gap:16px;font-size:12px">
+            <span>248 entered</span>
+            <span style="color:#10b981">↑ 83% advanced</span>
+            <span style="color:#ef4444">↓ 17% dropped</span>
+            <span style="color:var(--text-secondary)">avg 2.3 msgs · avg 18min</span>
+          </div>
+        </div>
+        <div style="height:8px;background:var(--surface-3);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:83%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px"></div>
+        </div>
+      </div>
+
+      <!-- Phase 2 -->
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="background:#8b5cf6;color:white;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">2</span>
+            <strong>Objection Handling</strong>
+            <span style="font-size:10px;background:#ef4444;color:white;padding:1px 6px;border-radius:99px">⚠ highest drop-off</span>
+          </div>
+          <div style="display:flex;gap:16px;font-size:12px">
+            <span>206 entered</span>
+            <span style="color:#10b981">↑ 59% advanced</span>
+            <span style="color:#ef4444">↓ 41% dropped</span>
+            <span style="color:var(--text-secondary)">avg 4.1 msgs · avg 1.2hrs</span>
+          </div>
+        </div>
+        <div style="height:8px;background:var(--surface-3);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:59%;background:linear-gradient(90deg,#f59e0b,#ef4444);border-radius:4px"></div>
+        </div>
+      </div>
+
+      <!-- Phase 3 -->
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="background:#06b6d4;color:white;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">3</span>
+            <strong>CTA Push</strong>
+          </div>
+          <div style="display:flex;gap:16px;font-size:12px">
+            <span>121 entered</span>
+            <span style="color:#10b981">↑ 74% advanced</span>
+            <span style="color:#ef4444">↓ 26% dropped</span>
+            <span style="color:var(--text-secondary)">avg 1.8 msgs · avg 34min</span>
+          </div>
+        </div>
+        <div style="height:8px;background:var(--surface-3);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:74%;background:linear-gradient(90deg,#06b6d4,#6366f1);border-radius:4px"></div>
+        </div>
+      </div>
+
+      <!-- Phase 4 / Goal -->
+      <div style="margin-bottom:4px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="background:#10b981;color:white;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">✓</span>
+            <strong>Appointment Booked</strong>
+            <span style="font-size:10px;background:#10b981;color:white;padding:1px 6px;border-radius:99px">GOAL</span>
+          </div>
+          <div style="display:flex;gap:16px;font-size:12px">
+            <span style="color:#10b981;font-weight:600">79 converted (32%)</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>How Metrics Are Computed</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px">
+      <p class="label">Phase success rate</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        entered = COUNT(conversation_phases<br>
+        &nbsp;&nbsp;WHERE phase_id = X)<br><br>
+        advanced = COUNT WHERE exit_reason<br>
+        &nbsp;&nbsp;IN ('advanced', 'converted')<br><br>
+        dropped = COUNT WHERE exit_reason<br>
+        &nbsp;&nbsp;= 'dropped'<br><br>
+        success_rate = advanced / entered
+      </code>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px">
+      <p class="label">Drop-off detection (background job)</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        Every 15min: scan open phases<br>
+        WHERE entered_at < now() - delay<br>
+        AND exited_at IS NULL<br>
+        AND no messages since entered_at<br><br>
+        → send follow_up_message via FB<br>
+        → if still no reply after delay*2:<br>
+        &nbsp;&nbsp;set exit_reason = 'dropped'
+      </code>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px">
+      <p class="label">Conversion tracking</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        On lead_event INSERT:<br>
+        type = 'appointment_booked' |<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'purchase' | 'form_submit'<br><br>
+        → match against campaign.goal<br>
+        → INSERT campaign_conversions<br>
+        → mark conversation_phase<br>
+        &nbsp;&nbsp;exit_reason = 'converted'
+      </code>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px">
+      <p class="label">Experiment suggestion logic</p>
+      <code style="font-size:12px;line-height:1.8;display:block">
+        For each campaign in experiment:<br>
+        conv_rate = conversions / assigned<br><br>
+        suggest_winner IF:<br>
+        · all variants >= min_sample_size<br>
+        · best_rate > others by >10%<br><br>
+        Show banner: "Variant X is winning<br>
+        — promote when ready"
+      </code>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="padding:16px;background:rgba(99,102,241,0.08);border-radius:8px;border-left:3px solid #6366f1">
+  <p class="label">Drop-off timing — two-step</p>
+  <p style="margin:0;font-size:13px">
+    1. After <code>follow_up_delay_minutes</code> of silence → send follow-up message<br>
+    2. After another <code>follow_up_delay_minutes</code> with still no reply → mark <code>exit_reason = 'dropped'</code> and close phase<br><br>
+    This means "dropped" means the lead ignored even the follow-up — a true cold lead.
+  </p>
+</div>

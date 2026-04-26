@@ -1,0 +1,47 @@
+<h2>Campaign System — Architecture Approaches</h2>
+<p class="subtitle">Three ways to model campaigns, A/B testing, and phase metrics</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Flat Campaigns + Implicit A/B</h3>
+      <p>Each campaign has an <code>is_primary</code> flag and a <code>test_weight</code>. When multiple campaigns have <code>in_test = true</code>, the engine distributes new leads by weight. No explicit experiment entity.</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>Pros</h4><ul><li>Simplest schema</li><li>Fastest to build</li><li>Easy to reason about</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>No clear "start/end" of a test</li><li>Harder to archive old test results</li><li>Messy metrics over time</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Campaigns + Experiments <span style="font-size:11px;background:#6366f1;color:white;padding:2px 8px;border-radius:99px;margin-left:8px">Recommended</span></h3>
+      <p>Campaigns are standalone (one is primary). An <strong>experiment</strong> groups 2–4 campaigns together for a defined test period, with assignment weights and a conversion goal. The primary campaign runs outside of experiments.</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>Pros</h4><ul><li>Clean separation of prod vs test</li><li>Experiments have start/end & history</li><li>Winner suggestion tied to experiment</li><li>Natural "promote winner" flow</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>One extra table (<code>experiments</code>)</li><li>Slightly more UI to build</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Campaign Groups (Hierarchical)</h3>
+      <p>A <strong>campaign group</strong> is the top-level entity. Each group has one "control" (primary) and N "variants". Metrics always roll up to the group. A campaign can't exist outside a group.</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>Pros</h4><ul><li>Clean rollup analytics</li><li>Every campaign has context</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Forces grouping even when not testing</li><li>More complex for "I just want one campaign"</li><li>Extra hierarchy adds cognitive overhead</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:24px;padding:16px;background:var(--surface-2);border-radius:8px;border-left:3px solid #6366f1">
+  <p class="label">Why B is recommended</p>
+  <p style="margin:0">A tenant usually has one good campaign running. Testing is a deliberate, time-bounded activity. Approach B models exactly that — normal operation stays simple, and when you want to test, you create an experiment. Old experiment results stay clean and queryable forever. It also maps directly to how real A/B testing tools (Optimizely, GrowthBook) work.</p>
+</div>

@@ -1,0 +1,8 @@
+{"type":"server-started","port":54122,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:54122","screen_dir":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/39538-1776603544/content","state_dir":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/39538-1776603544/state"}
+{"type":"screen-added","file":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/39538-1776603544/content/approaches.html"}
+{"source":"user-event","type":"click","text":"B\n    \n      Campaigns + Experiments Recommended\n      Campaigns are standalone (one is primary). An experiment groups 2–4 campaigns together for a defined test period, with assignment weights and a conversion goal. The primary campaign runs outside of experiments.\n      \n        ProsClean separation of prod vs testExperiments have start/end & historyWinner suggestion tied to experimentNatural \"promote winner\" flow\n        ConsOne extra table (experiments)Slightly more UI to build","choice":"b","id":null,"timestamp":1776604388357}
+{"type":"screen-added","file":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/39538-1776603544/content/data-model.html"}
+{"type":"screen-added","file":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/39538-1776603544/content/ui-campaigns.html"}
+{"type":"screen-added","file":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/39538-1776603544/content/metrics.html"}
+{"type":"screen-added","file":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/39538-1776603544/content/engine.html"}
+{"type":"server-stopped","reason":"idle timeout"}

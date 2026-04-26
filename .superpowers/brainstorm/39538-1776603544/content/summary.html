@@ -1,0 +1,94 @@
+<h2>Full Design Summary — Campaign Flow Builder</h2>
+<p class="subtitle">Everything we're building, in one view. Approve to proceed to implementation plan.</p>
+
+<div class="section">
+  <h3>What We're Building</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;font-size:13px">
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:14px;border-left:3px solid #6366f1">
+      <p class="label">Database (5 new tables)</p>
+      <ul style="margin:4px 0 0;padding-left:16px;line-height:2">
+        <li><code>campaigns</code> — name, goal, is_primary, status, follow-up config</li>
+        <li><code>campaign_phases</code> — replaces bot_flow_phases, scoped to a campaign</li>
+        <li><code>lead_campaign_assignments</code> — permanent sticky assignment per lead</li>
+        <li><code>experiments</code> — A/B test groups with start/end/winner</li>
+        <li><code>experiment_campaigns</code> — weighted join of campaigns to experiments</li>
+        <li><code>campaign_conversions</code> — conversion event log per campaign</li>
+      </ul>
+      <p style="margin:8px 0 0;color:var(--text-secondary)">Modified: <code>conversation_phases</code> + exited_at, exit_reason</p>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:14px;border-left:3px solid #8b5cf6">
+      <p class="label">New UI Pages</p>
+      <ul style="margin:4px 0 0;padding-left:16px;line-height:2">
+        <li><code>/app/campaigns</code> — campaign list with conversion rates</li>
+        <li><code>/app/campaigns/new</code> — create campaign</li>
+        <li><code>/app/campaigns/[id]</code> — editor (Flow / Settings / Metrics tabs)</li>
+        <li><code>/app/campaigns/experiments</code> — A/B test manager</li>
+        <li><code>/app/campaigns/experiments/new</code> — create experiment</li>
+        <li><code>/app/campaigns/experiments/[id]</code> — live experiment view</li>
+      </ul>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:14px;border-left:3px solid #06b6d4">
+      <p class="label">API Routes</p>
+      <ul style="margin:4px 0 0;padding-left:16px;line-height:2">
+        <li><code>/api/campaigns</code> — CRUD</li>
+        <li><code>/api/campaigns/[id]/phases</code> — phase CRUD + reorder</li>
+        <li><code>/api/campaigns/[id]/metrics</code> — phase funnel + conversion stats</li>
+        <li><code>/api/experiments</code> — CRUD</li>
+        <li><code>/api/experiments/[id]/promote</code> — promote winner</li>
+        <li><code>/api/cron/drop-off-scanner</code> — Vercel cron, every 15min</li>
+      </ul>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:8px;padding:14px;border-left:3px solid #10b981">
+      <p class="label">Engine Changes</p>
+      <ul style="margin:4px 0 0;padding-left:16px;line-height:2">
+        <li>Assign lead to campaign on first message (experiment-aware)</li>
+        <li>Load phases from <code>campaign_phases</code> not <code>bot_flow_phases</code></li>
+        <li>Track phase exit reason + timestamp</li>
+        <li>Detect conversion via <code>lead_events</code> → log to <code>campaign_conversions</code></li>
+        <li>Background cron: silence → follow-up → drop-off mark</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h3>Migration Path</h3>
+  <div style="background:var(--surface-2);border-radius:8px;padding:14px;margin-top:12px;font-size:13px">
+    <p style="margin-top:0">Existing tenants auto-get a "Default Campaign" (primary) with their current phases copied in. Zero downtime — the engine falls back to the primary campaign if no assignment exists, so old conversations continue uninterrupted during the rollout.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Implementation Phases</h3>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;font-size:13px">
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 14px;background:var(--surface-2);border-radius:8px">
+      <span style="background:#6366f1;color:white;padding:2px 10px;border-radius:99px;font-size:11px;white-space:nowrap">Phase 9A</span>
+      <span><strong>Data layer</strong> — migrations, types, RLS, migration script for existing phases</span>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 14px;background:var(--surface-2);border-radius:8px">
+      <span style="background:#8b5cf6;color:white;padding:2px 10px;border-radius:99px;font-size:11px;white-space:nowrap">Phase 9B</span>
+      <span><strong>Campaign CRUD API + engine wiring</strong> — campaigns, phases API, assignment logic, conversion detection</span>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 14px;background:var(--surface-2);border-radius:8px">
+      <span style="background:#06b6d4;color:white;padding:2px 10px;border-radius:99px;font-size:11px;white-space:nowrap">Phase 9C</span>
+      <span><strong>Campaign UI</strong> — list, editor (Flow/Settings tabs), nav update, remove old flow builder tab</span>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 14px;background:var(--surface-2);border-radius:8px">
+      <span style="background:#f59e0b;color:white;padding:2px 10px;border-radius:99px;font-size:11px;white-space:nowrap">Phase 9D</span>
+      <span><strong>Experiments UI</strong> — experiment manager, A/B assignment, promote-winner flow</span>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 14px;background:var(--surface-2);border-radius:8px">
+      <span style="background:#10b981;color:white;padding:2px 10px;border-radius:99px;font-size:11px;white-space:nowrap">Phase 9E</span>
+      <span><strong>Metrics + cron</strong> — phase funnel UI, conversion stats, drop-off scanner background job</span>
+    </div>
+  </div>
+</div>
+
+<div style="padding:16px;background:rgba(99,102,241,0.08);border-radius:8px;border-left:3px solid #6366f1;font-size:13px;margin-top:8px">
+  <strong>Does this design look complete?</strong> Reply "approved" to write the spec doc and move to implementation planning.
+</div>

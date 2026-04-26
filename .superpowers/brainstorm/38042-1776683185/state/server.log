@@ -1,0 +1,6 @@
+{"type":"server-started","port":50430,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:50430","screen_dir":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/38042-1776683185/content","state_dir":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/38042-1776683185/state"}
+{"type":"screen-added","file":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/38042-1776683185/content/onboarding-flow.html"}
+{"type":"screen-added","file":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/38042-1776683185/content/onboarding-flow-v2.html"}
+{"type":"screen-added","file":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/38042-1776683185/content/onboarding-step4-v3.html"}
+{"type":"screen-added","file":"/Users/codemedavid/Documents/WhatStage_V2/.superpowers/brainstorm/38042-1776683185/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

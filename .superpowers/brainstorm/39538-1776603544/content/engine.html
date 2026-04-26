@@ -1,0 +1,117 @@
+<h2>Design — Section 4: Conversation Engine Changes</h2>
+<p class="subtitle">How the engine picks a campaign, assigns a lead, and tracks conversions</p>
+
+<div class="section">
+  <h3>Assignment Flow (first message from a lead)</h3>
+  <div style="background:var(--surface-2);border-radius:8px;padding:16px;margin-top:12px;font-size:13px">
+    <div style="display:flex;flex-direction:column;gap:0">
+
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="background:#6366f1;color:white;border-radius:50%;width:24px;height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">1</span>
+        <div><strong>Message arrives</strong> → look up <code>lead_campaign_assignments</code> by <code>lead_id</code></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="background:#6366f1;color:white;border-radius:50%;width:24px;height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">2</span>
+        <div><strong>Assignment found?</strong> → load <code>campaign_phases</code> for that campaign. Done — skip to step 5.</div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="background:#f59e0b;color:white;border-radius:50%;width:24px;height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">3</span>
+        <div><strong>No assignment:</strong> check <code>experiments</code> for <code>status = 'running'</code> for this tenant<br>
+        <span style="color:var(--text-secondary)">→ If running: pick campaign by weighted random (weights from <code>experiment_campaigns</code>)</span><br>
+        <span style="color:var(--text-secondary)">→ If none: use the tenant's <code>is_primary = true</code> campaign</span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="background:#f59e0b;color:white;border-radius:50%;width:24px;height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">4</span>
+        <div><strong>INSERT</strong> <code>lead_campaign_assignments</code> — assignment is now permanent</div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0">
+        <span style="background:#10b981;color:white;border-radius:50%;width:24px;height:24px;min-width:24px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">5</span>
+        <div><strong>Load phases</strong> from <code>campaign_phases</code> → run normal conversation engine logic</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Conversion Detection</h3>
+  <div style="background:var(--surface-2);border-radius:8px;padding:16px;margin-top:12px;font-size:13px">
+    <p style="margin-top:0">Conversion is triggered by existing <code>lead_events</code> — no new webhook needed. A Supabase trigger (or app-level hook) watches <code>lead_events</code> inserts and fires when the event type matches the campaign goal:</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+      <div style="background:var(--surface-3);border-radius:6px;padding:10px">
+        <p class="label" style="margin-bottom:4px">Goal → Event match</p>
+        <code style="font-size:12px;line-height:1.8;display:block">
+          'form_submit' → lead_event.type = 'form_submit'<br>
+          'appointment_booked' → 'appointment_booked'<br>
+          'purchase' → 'purchase'<br>
+          'stage_reached' → 'stage_changed'<br>
+          &nbsp;&nbsp;+ payload.stage_id matches goal_config
+        </code>
+      </div>
+      <div style="background:var(--surface-3);border-radius:6px;padding:10px">
+        <p class="label" style="margin-bottom:4px">On match</p>
+        <code style="font-size:12px;line-height:1.8;display:block">
+          1. INSERT campaign_conversions<br>
+          2. UPDATE conversation_phases<br>
+          &nbsp;&nbsp;SET exit_reason = 'converted'<br>
+          &nbsp;&nbsp;WHERE open for this lead<br>
+          3. Bot can acknowledge<br>
+          &nbsp;&nbsp;the completed goal
+        </code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Migration — bot_flow_phases → campaign_phases</h3>
+  <div style="background:var(--surface-2);border-radius:8px;padding:16px;margin-top:12px;font-size:13px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="color:#6366f1;font-weight:700">①</span>
+        <span>For each tenant that has rows in <code>bot_flow_phases</code>: auto-create a campaign named <strong>"Default Campaign"</strong> with <code>is_primary = true</code> and goal = tenant's current <code>bot_goal</code></span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="color:#6366f1;font-weight:700">②</span>
+        <span>Copy all <code>bot_flow_phases</code> rows → <code>campaign_phases</code>, setting <code>campaign_id</code> to the new default campaign</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="color:#6366f1;font-weight:700">③</span>
+        <span>Update <code>conversation_phases.phase_id</code> FK to point to the new <code>campaign_phases</code> rows (matched by old ID)</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="color:#6366f1;font-weight:700">④</span>
+        <span>Tenants with zero phases get an empty "Default Campaign" — they're prompted to set it up on next login</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="color:#10b981;font-weight:700">✓</span>
+        <span><code>bot_flow_phases</code> kept as a backup view until migration verified, then dropped</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Background Job — Drop-off Scanner</h3>
+  <div style="background:var(--surface-2);border-radius:8px;padding:16px;margin-top:12px;font-size:13px">
+    <p style="margin-top:0">A Next.js cron route (<code>/api/cron/drop-off-scanner</code>) runs every 15 minutes via Vercel Cron:</p>
+    <code style="font-size:12px;line-height:1.8;display:block;background:var(--surface-3);padding:12px;border-radius:6px">
+      SELECT cp.*, c.follow_up_delay_minutes, c.follow_up_message,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cam.id as campaign_id<br>
+      FROM conversation_phases cp<br>
+      JOIN conversations conv ON conv.id = cp.conversation_id<br>
+      JOIN lead_campaign_assignments lca ON lca.lead_id = conv.lead_id<br>
+      JOIN campaigns cam ON cam.id = lca.campaign_id<br>
+      WHERE cp.exited_at IS NULL<br>
+      AND cp.entered_at < now() - (cam.follow_up_delay_minutes * interval '1 minute')<br>
+      AND last message in conversation < entered_at + delay<br><br>
+      → For each: send follow_up_message via FB Send API<br>
+      → After delay*2 with no reply: UPDATE exit_reason = 'dropped', exited_at = now()
+    </code>
+  </div>
+</div>

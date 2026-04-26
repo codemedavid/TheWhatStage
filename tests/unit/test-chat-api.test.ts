@@ -120,6 +120,8 @@ describe("POST /api/bot/test-chat", () => {
       phaseAction: "stay",
       confidence: 0.9,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     const { POST } = await import("@/app/api/bot/test-chat/route");
@@ -141,7 +143,7 @@ describe("POST /api/bot/test-chat", () => {
     mockRetrieve.mockResolvedValue({ status: "success", chunks: [], queryTarget: "general", retrievalPass: 1 });
     mockBuildPrompt.mockResolvedValue("prompt");
     mockGenerate.mockResolvedValue({ content: '{"message":"ok","phase_action":"stay","confidence":0.5,"image_ids":[],"cited_chunks":[]}', finishReason: "stop" });
-    mockParse.mockReturnValue({ message: "ok", phaseAction: "stay", confidence: 0.5, imageIds: [] });
+    mockParse.mockReturnValue({ message: "ok", phaseAction: "stay", confidence: 0.5, imageIds: [], actionButtonId: null, ctaText: null });
 
     const { POST } = await import("@/app/api/bot/test-chat/route");
     await POST(makeRequest());

@@ -1,0 +1,167 @@
+<h2>Design — Section 2: UI Structure</h2>
+<p class="subtitle">Campaign list, editor, and where it lives in the nav</p>
+
+<div class="section">
+  <h3>Navigation</h3>
+  <div style="display:flex;gap:16px;margin-top:12px">
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;flex:1">
+      <p class="label">Current nav</p>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Dashboard</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Bot (tabs: Knowledge, Flow Builder, Settings)</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Leads</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Actions</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Workflows</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Inbox</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Settings</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;font-size:24px;color:var(--text-secondary)">→</div>
+    <div style="background:var(--surface-2);border-radius:8px;padding:16px;flex:1">
+      <p class="label">New nav</p>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Dashboard</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Bot (tabs: Knowledge, Settings)</div>
+        <div style="padding:8px 12px;background:#6366f1;color:white;border-radius:6px;font-weight:600">✦ Campaigns (new top-level)</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Leads</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Actions</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Workflows</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Inbox</div>
+        <div style="padding:8px 12px;background:var(--surface-3);border-radius:6px">Settings</div>
+      </div>
+    </div>
+  </div>
+  <p style="font-size:12px;color:var(--text-secondary);margin-top:8px">The "Flow Builder" tab is removed from Bot — campaigns fully replace it.</p>
+</div>
+
+<div class="section">
+  <h3>/app/campaigns — Campaign List Page</h3>
+  <div class="mockup" style="margin-top:12px">
+    <div class="mockup-header">Campaign List</div>
+    <div class="mockup-body" style="font-size:13px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <strong style="font-size:16px">Campaigns</strong>
+          <p style="margin:0;color:var(--text-secondary);font-size:12px">Manage your conversation campaigns and A/B tests</p>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div class="mock-button" style="background:var(--surface-3);color:var(--text-primary)">⚗ Experiments</div>
+          <div class="mock-button">+ New Campaign</div>
+        </div>
+      </div>
+
+      <!-- Primary campaign -->
+      <div style="border:2px solid #6366f1;border-radius:8px;padding:14px;margin-bottom:10px;background:rgba(99,102,241,0.05)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <strong>Main Funnel</strong>
+              <span style="font-size:10px;background:#6366f1;color:white;padding:2px 8px;border-radius:99px">PRIMARY</span>
+              <span style="font-size:10px;background:#10b981;color:white;padding:2px 8px;border-radius:99px">ACTIVE</span>
+            </div>
+            <p style="margin:4px 0 0;color:var(--text-secondary);font-size:12px">Goal: Appointment Booked · 4 phases · Follow-up: 2hrs</p>
+          </div>
+          <div style="display:flex;gap:16px;text-align:right">
+            <div><div style="font-size:18px;font-weight:700;color:#10b981">32%</div><div style="font-size:11px;color:var(--text-secondary)">conversion</div></div>
+            <div><div style="font-size:18px;font-weight:700">248</div><div style="font-size:11px;color:var(--text-secondary)">leads</div></div>
+            <div class="mock-button" style="align-self:center">Edit →</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Another campaign -->
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <strong>Aggressive Close v2</strong>
+              <span style="font-size:10px;background:#f59e0b;color:white;padding:2px 8px;border-radius:99px">IN TEST</span>
+            </div>
+            <p style="margin:4px 0 0;color:var(--text-secondary);font-size:12px">Goal: Appointment Booked · 3 phases · Follow-up: 1hr</p>
+          </div>
+          <div style="display:flex;gap:16px;text-align:right">
+            <div><div style="font-size:18px;font-weight:700;color:#10b981">41%</div><div style="font-size:11px;color:var(--text-secondary)">conversion</div></div>
+            <div><div style="font-size:18px;font-weight:700">63</div><div style="font-size:11px;color:var(--text-secondary)">leads</div></div>
+            <div class="mock-button" style="align-self:center">Edit →</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Draft campaign -->
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;opacity:0.6">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <strong>Soft Nurture Draft</strong>
+              <span style="font-size:10px;background:var(--surface-3);color:var(--text-secondary);padding:2px 8px;border-radius:99px">DRAFT</span>
+            </div>
+            <p style="margin:4px 0 0;color:var(--text-secondary);font-size:12px">Goal: not set · 0 phases</p>
+          </div>
+          <div class="mock-button" style="align-self:center">Edit →</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>/app/campaigns/[id] — Campaign Editor (tabs)</h3>
+  <div class="mockup" style="margin-top:12px">
+    <div class="mockup-header">Campaign Editor — "Main Funnel"</div>
+    <div class="mockup-body" style="font-size:13px">
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px">
+        <div style="padding:8px 16px;border-bottom:2px solid #6366f1;color:#6366f1;font-weight:600">Flow</div>
+        <div style="padding:8px 16px;color:var(--text-secondary)">Settings</div>
+        <div style="padding:8px 16px;color:var(--text-secondary)">Metrics</div>
+      </div>
+      <p style="color:var(--text-secondary);font-size:12px;margin:0">
+        <strong>Flow tab:</strong> The existing phase list/editor (PhaseList, PhaseCard, PhaseForm, drag-to-reorder) — same UX as today's Flow Builder, now scoped to this campaign.<br><br>
+        <strong>Settings tab:</strong> Campaign name, goal selector, follow-up delay + message, status toggle (active/paused).<br><br>
+        <strong>Metrics tab:</strong> Per-phase funnel + conversion rate (covered in Section 3).
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>/app/campaigns/experiments — Experiment Manager</h3>
+  <div class="mockup" style="margin-top:12px">
+    <div class="mockup-header">Active Experiment</div>
+    <div class="mockup-body" style="font-size:13px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div>
+          <strong>"July Booking Test"</strong>
+          <span style="font-size:10px;background:#10b981;color:white;padding:2px 8px;border-radius:99px;margin-left:8px">RUNNING</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div class="mock-button" style="background:var(--surface-3);color:var(--text-primary)">Pause</div>
+          <div class="mock-button" style="background:#10b981">🏆 Promote Winner</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:var(--surface-2);border-radius:8px;padding:12px">
+          <div style="display:flex;justify-content:space-between">
+            <strong>Main Funnel</strong>
+            <span style="font-size:10px;background:var(--surface-3);padding:2px 6px;border-radius:4px">50%</span>
+          </div>
+          <div style="font-size:22px;font-weight:700;margin-top:8px;color:var(--text-primary)">32% <span style="font-size:13px;color:var(--text-secondary)">conv.</span></div>
+          <div style="font-size:12px;color:var(--text-secondary)">248 leads assigned</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">Avg 2.1 phases to convert</div>
+        </div>
+        <div style="background:rgba(16,185,129,0.08);border:1px solid #10b981;border-radius:8px;padding:12px">
+          <div style="display:flex;justify-content:space-between">
+            <strong>Aggressive Close v2</strong>
+            <span style="font-size:10px;background:var(--surface-3);padding:2px 6px;border-radius:4px">50%</span>
+          </div>
+          <div style="font-size:22px;font-weight:700;margin-top:8px;color:#10b981">41% <span style="font-size:13px;color:var(--text-secondary)">conv.</span></div>
+          <div style="font-size:12px;color:var(--text-secondary)">63 leads assigned</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">Avg 1.8 phases to convert</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding:10px;background:rgba(16,185,129,0.1);border-radius:6px;border-left:3px solid #10b981;font-size:12px">
+        💡 <strong>Suggestion:</strong> "Aggressive Close v2" is converting 28% better. Minimum sample size not yet reached (need 50 more leads on variant B). Check back soon.
+      </div>
+    </div>
+  </div>
+</div>

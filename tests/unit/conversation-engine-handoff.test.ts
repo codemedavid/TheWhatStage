@@ -184,6 +184,8 @@ function setupNormalPipeline() {
     phaseAction: "stay",
     confidence: 0.85,
     imageIds: [],
+    actionButtonId: null,
+    ctaText: null,
   });
   mockSelectImages.mockResolvedValue([]);
   mockParseResponse.mockImplementation((msg: string) => ({
@@ -265,6 +267,8 @@ describe("handleMessage — enriched escalation", () => {
       phaseAction: "escalate",
       confidence: 0.85,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     const result = await handleMessage({
@@ -297,6 +301,8 @@ describe("handleMessage — enriched escalation", () => {
       phaseAction: "escalate",
       confidence: 0.2,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     await handleMessage(defaultInput);
@@ -321,6 +327,8 @@ describe("handleMessage — enriched escalation", () => {
       phaseAction: "escalate",
       confidence: 0.85,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
     mockParseResponse.mockReturnValue({
       cleanMessage: "",
@@ -349,6 +357,8 @@ describe("handleMessage — enriched escalation", () => {
       phaseAction: "escalate",
       confidence: 0.85,
       imageIds: [],
+      actionButtonId: null,
+      ctaText: null,
     });
 
     await handleMessage(defaultInput); // no leadMessageId
