@@ -1,13 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // --- Mocks ---
-const mockGetCurrentPhase = vi.fn();
-const mockAdvancePhase = vi.fn();
-const mockIncrementMessageCount = vi.fn();
-vi.mock("@/lib/ai/phase-machine", () => ({
-  getCurrentPhase: (...args: unknown[]) => mockGetCurrentPhase(...args),
-  advancePhase: (...args: unknown[]) => mockAdvancePhase(...args),
-  incrementMessageCount: (...args: unknown[]) => mockIncrementMessageCount(...args),
+vi.mock("@/lib/db/campaign-funnels", () => ({
+  listFunnelsForCampaign: vi.fn(async () => [
+    { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+  ]),
+}));
+vi.mock("@/lib/ai/funnel-runtime", () => ({
+  getOrInitFunnelState: vi.fn(async () => ({
+    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    position: 0,
+    messageCount: 0,
+  })),
+  advanceFunnel: vi.fn(async () => ({
+    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    position: 0, advanced: false, completed: true,
+  })),
+  incrementFunnelMessageCount: vi.fn(async () => undefined),
 }));
 
 const mockRetrieveKnowledge = vi.fn();
@@ -64,35 +73,19 @@ vi.mock("@/lib/supabase/service", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
 
-  // Default mocks for a basic flow
-  mockGetCurrentPhase.mockResolvedValue({
-    conversationPhaseId: "cp-1",
-    phaseId: "p-1",
-    name: "Greeting",
-    orderIndex: 0,
-    maxMessages: 10,
-    systemPrompt: "Greet the user",
-    tone: "friendly",
-    goals: null,
-    transitionHint: null,
-    actionButtonIds: null,
-    messageCount: 0,
-  });
-
   mockRetrieveKnowledge.mockResolvedValue({
     status: "success",
     chunks: [],
     queryTarget: "general",
   });
 
-  // Tenant config query for max_images_per_response
   mockSupabaseFrom.mockImplementation((table: string) => {
     if (table === "tenants") {
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
-              data: { max_images_per_response: 2 },
+              data: { max_images_per_response: 2, persona_tone: "friendly" },
               error: null,
             }),
           }),
@@ -125,6 +118,18 @@ beforeEach(() => {
                 goal: "form_submit",
                 campaign_rules: [],
               },
+              error: null,
+            }),
+          }),
+        }),
+      };
+    }
+    if (table === "action_pages") {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { title: "Page", type: "form" },
               error: null,
             }),
           }),
@@ -179,7 +184,6 @@ beforeEach(() => {
     cleanMessage: "Hi!",
     extractedImageIds: [],
   });
-  mockIncrementMessageCount.mockResolvedValue(undefined);
 });
 
 import { handleMessage } from "@/lib/ai/conversation-engine";
@@ -221,7 +225,6 @@ describe("handleMessage — image integration", () => {
       extractedImageIds: ["img-1", "img-3"],
     });
 
-    // Mock image validation query
     mockSupabaseFrom.mockImplementation((table: string) => {
       if (table === "conversations") {
         return {
@@ -243,7 +246,19 @@ describe("handleMessage — image integration", () => {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
-                data: { max_images_per_response: 3 },
+                data: { max_images_per_response: 3, persona_tone: "friendly" },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "action_pages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { title: "Page", type: "form" },
                 error: null,
               }),
             }),
@@ -307,7 +322,6 @@ describe("handleMessage — image integration", () => {
       leadMessage: "show me products",
     });
 
-    // Should be deduplicated: img-1, img-2, img-3
     expect(result.imageIds).toEqual(expect.arrayContaining(["img-1", "img-2", "img-3"]));
     expect(result.imageIds).toHaveLength(3);
   });
@@ -345,7 +359,19 @@ describe("handleMessage — image integration", () => {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
-                data: { max_images_per_response: 2 },
+                data: { max_images_per_response: 2, persona_tone: "friendly" },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "action_pages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { title: "Page", type: "form" },
                 error: null,
               }),
             }),
@@ -441,7 +467,19 @@ describe("handleMessage — image integration", () => {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
-                data: { max_images_per_response: 2 },
+                data: { max_images_per_response: 2, persona_tone: "friendly" },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "action_pages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { title: "Page", type: "form" },
                 error: null,
               }),
             }),
@@ -453,7 +491,6 @@ describe("handleMessage — image integration", () => {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               in: vi.fn().mockResolvedValue({
-                // Only img-valid exists for this tenant
                 data: [{ id: "img-valid", url: "https://valid.jpg" }],
                 error: null,
               }),
