@@ -512,8 +512,8 @@ export type Database = {
       }
       campaigns: {
         Row: {
-          campaign_plan: Json | null
           campaign_personality: string | null
+          campaign_plan: Json | null
           campaign_rules: string[] | null
           created_at: string
           description: string | null
@@ -530,8 +530,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          campaign_plan?: Json | null
           campaign_personality?: string | null
+          campaign_plan?: Json | null
           campaign_rules?: string[] | null
           created_at?: string
           description?: string | null
@@ -548,8 +548,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          campaign_plan?: Json | null
           campaign_personality?: string | null
+          campaign_plan?: Json | null
           campaign_rules?: string[] | null
           created_at?: string
           description?: string | null
@@ -890,7 +890,9 @@ export type Database = {
       knowledge_docs: {
         Row: {
           content: string | null
+          content_hash: string | null
           created_at: string
+          display_order: number
           file_url: string | null
           id: string
           metadata: Json
@@ -901,7 +903,9 @@ export type Database = {
         }
         Insert: {
           content?: string | null
+          content_hash?: string | null
           created_at?: string
+          display_order?: number
           file_url?: string | null
           id?: string
           metadata?: Json
@@ -912,7 +916,9 @@ export type Database = {
         }
         Update: {
           content?: string | null
+          content_hash?: string | null
           created_at?: string
+          display_order?: number
           file_url?: string | null
           id?: string
           metadata?: Json
@@ -1976,6 +1982,7 @@ export type Database = {
         | "purchase"
         | "stage_changed"
         | "send_failed"
+        | "campaign_assigned"
       lead_knowledge_source: "ai_extracted" | "manual" | "form_submit"
       lead_note_type: "agent_note" | "ai_summary"
       order_status: "pending" | "paid" | "fulfilled" | "cancelled"
@@ -2157,6 +2164,7 @@ export const Constants = {
         "purchase",
         "stage_changed",
         "send_failed",
+        "campaign_assigned",
       ],
       lead_knowledge_source: ["ai_extracted", "manual", "form_submit"],
       lead_note_type: ["agent_note", "ai_summary"],
@@ -2175,3 +2183,4 @@ export const Constants = {
     },
   },
 } as const
+

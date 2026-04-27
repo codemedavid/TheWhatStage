@@ -5,7 +5,7 @@ import { FileText, HelpCircle, FileEdit, Package } from "lucide-react";
 import { useKnowledgeDocs } from "@/hooks/useKnowledgeDocs";
 import DocumentUpload from "./DocumentUpload";
 import FaqEditor from "./FaqEditor";
-import RichTextEditor from "./RichTextEditor";
+import UnifiedRichTextEditor from "./UnifiedRichTextEditor";
 import ProductKnowledge from "./ProductKnowledge";
 
 type SubTab = "documents" | "faq" | "editor" | "products";
@@ -62,7 +62,7 @@ export default function KnowledgePanel() {
         <FaqEditor docs={docs} onFaqAdded={refetch} />
       )}
       {activeTab === "editor" && (
-        <RichTextEditor docs={docs} onSaveComplete={refetch} />
+        <UnifiedRichTextEditor docs={docs} onSaveComplete={refetch} />
       )}
       {activeTab === "products" && (
         <ProductKnowledge docs={docs} />

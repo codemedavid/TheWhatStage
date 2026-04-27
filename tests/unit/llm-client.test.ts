@@ -125,18 +125,31 @@ describe("generateResponse", () => {
     );
   });
 
-  it("throws after exhausting all retries on 503", async () => {
+  it("throws after exhausting all retries on 503 across all fallback models", async () => {
+    // Source falls back across 3 models; each model retries 2x on 503 with
+    // 1s + 2s backoff. With 3 models that is 9 fetch calls and 9s of real
+    // wall time — far past the default 5s test timeout. Use fake timers so
+    // the backoff is virtual.
+    vi.useFakeTimers();
     mockFetch.mockResolvedValue({
       ok: false,
       status: 503,
       text: async () => "Model loading",
     });
 
-    await expect(generateResponse("System", "User")).rejects.toThrow(
+    const promise = generateResponse("System", "User");
+    // Drain pending timers (backoff sleeps) so retries proceed without
+    // burning real time.
+    const settled = expect(promise).rejects.toThrow(
       "HuggingFace API error (503)"
     );
+    await vi.runAllTimersAsync();
+    await settled;
 
-    expect(mockFetch).toHaveBeenCalledTimes(3); // initial + 2 retries
+    // 3 models × (1 initial + 2 retries) = 9 fetch calls
+    expect(mockFetch).toHaveBeenCalledTimes(9);
+
+    vi.useRealTimers();
   });
 
   it("omits response_format when responseFormat is 'text'", async () => {
