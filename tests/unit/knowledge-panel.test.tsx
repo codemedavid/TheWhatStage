@@ -60,7 +60,7 @@ describe("KnowledgePanel", () => {
     await user.click(screen.getByText("Editor"));
 
     await waitFor(() => {
-      expect(screen.getByText("No documents created")).toBeInTheDocument();
+      expect(screen.getByText("No knowledge written yet")).toBeInTheDocument();
     });
   });
 

@@ -80,7 +80,7 @@ describe("FaqEditor", () => {
     await user.click(screen.getByText("Add FAQ"));
     await user.click(screen.getByText("Save"));
 
-    expect(screen.getByText(/question is required/i)).toBeInTheDocument();
+    expect(screen.getByText(/question and answer are required/i)).toBeInTheDocument();
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });

@@ -122,7 +122,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: loadErr.message }, { status: 500 });
   }
 
-  const existing: ExistingDoc[] = (existingRaw ?? []).map((d: any) => ({
+  const existing: ExistingDoc[] = (existingRaw ?? []).map((d) => ({
     id: d.id,
     title: d.title,
     contentHash: d.content_hash,

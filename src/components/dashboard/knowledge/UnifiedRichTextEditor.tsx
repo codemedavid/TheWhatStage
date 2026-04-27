@@ -85,7 +85,6 @@ export default function UnifiedRichTextEditor({ docs, onSaveComplete }: Props) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const save = async () => {
