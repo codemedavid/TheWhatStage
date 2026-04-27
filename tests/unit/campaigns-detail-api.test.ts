@@ -122,6 +122,46 @@ describe("PATCH /api/campaigns/[id]", () => {
       })
     );
   });
+
+  it("updates campaign main goal and optional personality override", async () => {
+    mockResolveSession.mockResolvedValue({ userId: "u1", tenantId: "t1" });
+
+    const update = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: {
+                id: "camp-1",
+                main_goal: "Book qualified calls for agency owners.",
+                campaign_personality: "Direct, expert, low-fluff.",
+              },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    });
+    mockFrom.mockReturnValue({ update });
+
+    const { PATCH } = await import("@/app/api/campaigns/[id]/route");
+    const req = new Request("http://localhost/api/campaigns/camp-1", {
+      method: "PATCH",
+      body: JSON.stringify({
+        main_goal: "Book qualified calls for agency owners.",
+        campaign_personality: "Direct, expert, low-fluff.",
+      }),
+    });
+    const res = await PATCH(req, { params });
+
+    expect(res.status).toBe(200);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        main_goal: "Book qualified calls for agency owners.",
+        campaign_personality: "Direct, expert, low-fluff.",
+      })
+    );
+  });
 });
 
 describe("DELETE /api/campaigns/[id]", () => {

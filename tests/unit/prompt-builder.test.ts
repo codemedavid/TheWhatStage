@@ -65,8 +65,6 @@ const baseStep: StepContext = {
   tone: "friendly",
   goal: "Open the conversation and build rapport",
   transitionHint: "Advance when lead responds positively",
-  messageCount: 3,
-  maxMessages: 10,
   actionButtonIds: [],
 };
 
@@ -118,17 +116,18 @@ describe("buildSystemPrompt", () => {
     expect(prompt.toLowerCase()).not.toContain("act like alex");
   });
 
-  it("frames current step as advisory guidance instead of a rigid script", async () => {
+  it("frames the funnel as the plan and includes the precedence ladder", async () => {
     setupMocks();
 
     const prompt = await buildSystemPrompt(makeContext());
 
-    expect(prompt).toContain("The step is guidance, not a rule");
-    expect(prompt).toContain("respond to the lead's intent first");
-    expect(prompt).toContain("You may advance when the conversation naturally moves forward");
+    expect(prompt).toContain("DECISION PRECEDENCE");
+    expect(prompt).toContain("ANSWER A DIRECT QUESTION");
+    expect(prompt).toContain("CLOSE ON A BUYING SIGNAL");
+    expect(prompt).toContain("THE FUNNEL IS THE PLAN");
   });
 
-  it("instructs vague high-intent messages to default to the current offer", async () => {
+  it("forces the button on price/buying-signal triggers and treats vague intent as the current offer", async () => {
     setupMocks();
 
     const prompt = await buildSystemPrompt(
@@ -141,9 +140,11 @@ describe("buildSystemPrompt", () => {
       })
     );
 
-    expect(prompt).toContain('If the lead says "interested"');
-    expect(prompt).toContain("Assume they mean the current offer if one is available");
-    expect(prompt).toContain('Do not ask "interested in what?"');
+    expect(prompt).toContain("BUYING-SIGNAL TRIGGERS");
+    expect(prompt).toContain("PRICE QUESTION");
+    expect(prompt).toContain("Send the action button THIS SAME turn");
+    expect(prompt).toContain("Assume they mean the current offer");
+    expect(prompt).toContain('Do NOT ask "interested in what?"');
     expect(prompt).toContain("Spring Enrollment");
     expect(prompt).toContain("A coaching program for small businesses");
   });
@@ -198,12 +199,13 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("Advance when lead responds positively");
   });
 
-  it("layer 3 — message count and max messages are included", async () => {
+  it("does not include message-count budgets or soft-limit pressure", async () => {
     setupMocks();
     const prompt = await buildSystemPrompt(makeContext());
-    expect(prompt).toContain("3");
-    expect(prompt).toContain("10");
-    expect(prompt).toContain("soft limit");
+    expect(prompt).not.toContain("messages in this step");
+    expect(prompt).not.toContain("soft limit");
+    expect(prompt).not.toContain("Approaching the soft limit");
+    expect(prompt).not.toContain("AT or PAST");
   });
 
   it("layer 4 — conversation history is formatted as Lead/Bot", async () => {
@@ -291,7 +293,8 @@ describe("buildSystemPrompt", () => {
     const prompt = await buildSystemPrompt(makeContext());
     expect(prompt).toContain("RESPONSE FORMAT");
     expect(prompt).toContain('"message"');
-    expect(prompt).toContain('"phase_action"');
+    expect(prompt).toContain('"funnel_action"');
+    expect(prompt).not.toContain('"phase_action"');
     expect(prompt).toContain('"confidence"');
     expect(prompt).toContain('"image_ids"');
     expect(prompt).toContain("stay");
@@ -342,9 +345,61 @@ describe("buildSystemPrompt", () => {
       })
     );
 
-    expect(prompt).toContain("--- CAMPAIGN RULES ---");
+    expect(prompt).toContain("--- CAMPAIGN PLAYBOOK (your hidden checklist) ---");
     expect(prompt).toContain("Always mention the free consultation");
     expect(prompt).toContain("Never discuss pricing until phase 2");
+    expect(prompt).toMatch(/\[OPEN\] Always mention the free consultation/);
+  });
+
+  it("renders campaign personality as an override above the tenant default voice", async () => {
+    setupMocks(
+      [],
+      [],
+      {
+        persona_tone: "professional",
+        custom_instructions: "Keep the account voice formal and reserved.",
+      }
+    );
+
+    const prompt = await buildSystemPrompt(
+      makeContext({
+        campaign: {
+          name: "Founder-Led Close",
+          description: "A direct-response campaign for warm leads.",
+          goal: "purchase",
+          mainGoal: "Get qualified founders to buy the implementation package.",
+          campaignPersonality: "Founder-led, direct, concise, slightly challenging.",
+          campaignRules: ["Ask what revenue bottleneck they want solved first"],
+        },
+      })
+    );
+
+    expect(prompt).toContain("--- CAMPAIGN PERSONALITY OVERRIDE ---");
+    expect(prompt).toContain("Founder-led, direct, concise, slightly challenging.");
+    expect(prompt).toContain("overrides the tenant default voice");
+    expect(prompt).toContain("TENANT DEFAULT VOICE");
+    expect(prompt).toContain("Keep the account voice formal and reserved.");
+    expect(prompt.indexOf("CAMPAIGN PERSONALITY OVERRIDE")).toBeLessThan(
+      prompt.indexOf("TENANT DEFAULT VOICE")
+    );
+  });
+
+  it("uses campaign main goal as the active mission when present", async () => {
+    setupMocks();
+
+    const prompt = await buildSystemPrompt(
+      makeContext({
+        campaign: {
+          name: "Booking Push",
+          description: "Book demo calls for qualified leads.",
+          goal: "appointment_booked",
+          mainGoal: "Get qualified leads to book a strategy call after one fit question.",
+          campaignRules: [],
+        },
+      })
+    );
+
+    expect(prompt).toContain("Campaign main goal: Get qualified leads to book a strategy call after one fit question.");
   });
 
   it("skips campaign rules layer when rules are empty", async () => {
@@ -361,7 +416,7 @@ describe("buildSystemPrompt", () => {
       })
     );
 
-    expect(prompt).not.toContain("--- CAMPAIGN RULES ---");
+    expect(prompt).not.toContain("--- CAMPAIGN PLAYBOOK (your hidden checklist) ---");
   });
 
   it("step with null goal and transitionHint does not crash", async () => {
@@ -409,8 +464,6 @@ describe("buildSystemPrompt", () => {
         tone: "friendly",
         goal: "Understand their needs",
         transitionHint: null,
-        messageCount: 2,
-        maxMessages: 5,
         actionButtonIds: ["ap-1"],
       };
 
@@ -440,8 +493,6 @@ describe("buildSystemPrompt", () => {
         tone: "friendly",
         goal: null,
         transitionHint: null,
-        messageCount: 0,
-        maxMessages: 5,
         actionButtonIds: [],
       };
 

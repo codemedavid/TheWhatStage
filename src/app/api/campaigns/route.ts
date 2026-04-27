@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { resolveSession } from "@/lib/auth/session";
 import { z } from "zod";
+import type { Json } from "@/types/database";
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       goal: parsed.data.goal,
-      goal_config: parsed.data.goal_config ?? {},
+      goal_config: (parsed.data.goal_config ?? {}) as Json,
       follow_up_delay_minutes: parsed.data.follow_up_delay_minutes ?? 120,
       follow_up_message: parsed.data.follow_up_message ?? null,
     })

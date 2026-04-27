@@ -54,6 +54,7 @@ describe("POST /api/bot/test-chat", () => {
         in: vi.fn().mockReturnThis(),
       }),
       tenants: () => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), single: vi.fn().mockResolvedValue({ data: { name: "Acme", persona_tone: "friendly" } }) }),
+      bot_rules: () => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
     });
 
     const req = new Request("http://x", {
@@ -103,6 +104,7 @@ describe("POST /api/bot/test-chat", () => {
       }),
       campaigns: () => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), single: vi.fn().mockResolvedValue({ data: { name: "C", description: "", goal: "purchase", campaign_rules: [] } }) }),
       tenants: () => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), single: vi.fn().mockResolvedValue({ data: { name: "Acme", persona_tone: "friendly" } }) }),
+      bot_rules: () => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockResolvedValue({ data: [], error: null }) }),
     });
     const req = new Request("http://x", {
       method: "POST",

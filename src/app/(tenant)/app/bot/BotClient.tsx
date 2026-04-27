@@ -299,13 +299,11 @@ type ReasoningChunk = {
   source: string;
 };
 
-type PhaseInfo = {
+type FunnelInfo = {
   id: string;
   name: string;
   index: number;
   total: number;
-  messageCount: number;
-  maxMessages: number;
 };
 
 type Reasoning = {
@@ -313,7 +311,7 @@ type Reasoning = {
   confidence: number;
   queryTarget: string;
   retrievalPass: number;
-  phaseAction: string;
+  funnelAction: string;
 };
 
 type Campaign = {
@@ -321,10 +319,23 @@ type Campaign = {
   name: string;
 };
 
-type PhaseOption = {
+type FunnelOption = {
   id: string;
   name: string;
-  order_index: number;
+  position: number;
+};
+
+type CampaignFunnelResponse = {
+  funnels?: Array<{
+    id: string;
+    position: number;
+    actionPageId: string;
+  }>;
+  availablePages?: Array<{
+    id: string;
+    title: string;
+    type: string;
+  }>;
 };
 
 function TestChatTab() {
@@ -334,11 +345,11 @@ function TestChatTab() {
   const [error, setError] = useState<string | null>(null);
   const [sessionId] = useState(() => `test-${Date.now()}`);
 
-  // Campaign & phase state
+  // Campaign & funnel state
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
-  const [phases, setPhases] = useState<PhaseOption[]>([]);
-  const [currentPhase, setCurrentPhase] = useState<PhaseInfo | null>(null);
+  const [funnels, setFunnels] = useState<FunnelOption[]>([]);
+  const [currentFunnel, setCurrentFunnel] = useState<FunnelInfo | null>(null);
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
 
   // Load campaigns on mount
@@ -357,19 +368,36 @@ function TestChatTab() {
     load();
   }, []);
 
-  // Load phases when campaign changes
+  // Load funnels when campaign changes
   useEffect(() => {
-    async function loadPhases() {
-      const url = selectedCampaignId
-        ? `/api/campaigns/${selectedCampaignId}/phases`
-        : "/api/bot/phases";
+    async function loadFunnels() {
+      if (!selectedCampaignId) {
+        setFunnels([]);
+        return;
+      }
+
+      const url = `/api/campaigns/${selectedCampaignId}/funnels`;
       const res = await fetch(url);
       if (res.ok) {
-        const data = await res.json();
-        setPhases(data.phases ?? []);
+        const data = (await res.json()) as CampaignFunnelResponse;
+        const pagesById = new Map(
+          (data.availablePages ?? []).map((page) => [page.id, page])
+        );
+        const nextFunnels = (data.funnels ?? [])
+          .slice()
+          .sort((a, b) => a.position - b.position)
+          .map((funnel) => {
+            const page = pagesById.get(funnel.actionPageId);
+            return {
+              id: funnel.id,
+              position: funnel.position,
+              name: `Step ${funnel.position + 1}: ${page?.title ?? "Action page"}`,
+            };
+          });
+        setFunnels(nextFunnels);
       }
     }
-    loadPhases();
+    loadFunnels();
   }, [selectedCampaignId]);
 
   const handleReset = async () => {
@@ -380,7 +408,7 @@ function TestChatTab() {
     });
     setMessages([]);
     setReasoning(null);
-    setCurrentPhase(null);
+    setCurrentFunnel(null);
     setError(null);
   };
 
@@ -389,7 +417,7 @@ function TestChatTab() {
     await handleReset();
   };
 
-  const handleJumpToPhase = async (phaseId: string) => {
+  const handleJumpToFunnel = async (funnelId: string) => {
     try {
       const res = await fetch("/api/bot/test-chat", {
         method: "POST",
@@ -398,30 +426,30 @@ function TestChatTab() {
           message: "jump",
           sessionId,
           campaignId: selectedCampaignId,
-          jumpToPhaseId: phaseId,
+          jumpToFunnelId: funnelId,
         }),
       });
       if (res.ok) {
         const data = await res.json();
-        setCurrentPhase({
-          id: data.currentPhase.id,
-          name: data.currentPhase.name,
-          index: data.phaseIndex,
-          total: data.totalPhases,
-          messageCount: 0,
-          maxMessages: data.currentPhase.maxMessages ?? 3,
-        });
-        const jumpedPhase = phases.find((p) => p.id === phaseId);
+        if (data.currentFunnel) {
+          setCurrentFunnel({
+            id: data.currentFunnel.id,
+            name: data.currentFunnel.pageTitle ?? "Action page",
+            index: data.currentFunnel.index,
+            total: data.currentFunnel.total,
+          });
+        }
+        const jumpedFunnel = funnels.find((f) => f.id === funnelId);
         const systemMsg: Message = {
           id: `sys-${Date.now()}`,
           direction: "out",
-          text: `--- Jumped to phase: ${jumpedPhase?.name ?? "Unknown"} ---`,
+          text: `--- Jumped to funnel: ${jumpedFunnel?.name ?? "Unknown"} ---`,
           createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, systemMsg]);
       }
     } catch {
-      setError("Failed to jump to phase");
+      setError("Failed to jump to funnel");
     }
   };
 
@@ -462,17 +490,22 @@ function TestChatTab() {
       };
       setMessages((prev) => [...prev, botMsg]);
 
-      // Update phase info
-      if (data.currentPhase) {
-        setCurrentPhase(data.currentPhase);
+      // Update funnel info
+      if (data.currentFunnel) {
+        setCurrentFunnel({
+          id: data.currentFunnel.id,
+          name: data.currentFunnel.pageTitle ?? "Action page",
+          index: data.currentFunnel.index,
+          total: data.currentFunnel.total,
+        });
       }
 
-      // Show phase advancement notification
-      if (data.phaseAdvanced) {
+      // Show funnel advancement notification
+      if (data.funnelAdvanced && data.currentFunnel) {
         const advanceMsg: Message = {
           id: `sys-advance-${Date.now()}`,
           direction: "out",
-          text: `--- Advanced to phase: ${data.currentPhase.name} ---`,
+          text: `--- Advanced to funnel: ${data.currentFunnel.pageTitle ?? "Action page"} ---`,
           createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, advanceMsg]);
@@ -483,7 +516,7 @@ function TestChatTab() {
         confidence: data.confidence ?? 0,
         queryTarget: data.queryTarget ?? "general",
         retrievalPass: data.retrievalPass ?? 1,
-        phaseAction: data.phaseAction ?? "stay",
+        funnelAction: data.funnelAction ?? data.phaseAction ?? "stay",
       });
     } catch {
       setError("Failed to reach the server. Check your connection.");
@@ -521,28 +554,27 @@ function TestChatTab() {
           </select>
         </div>
 
-        {/* Phase Jump */}
-        {phases.length > 0 && (
+        {/* Funnel Jump */}
+        {funnels.length > 0 && (
           <div className="flex items-center gap-2">
             <label className="text-xs font-medium text-[var(--ws-text-muted)]">Jump to:</label>
             <select
               value=""
-              onChange={(e) => { if (e.target.value) handleJumpToPhase(e.target.value); }}
+              onChange={(e) => { if (e.target.value) handleJumpToFunnel(e.target.value); }}
               className="rounded-lg border border-[var(--ws-border)] bg-white px-3 py-1.5 text-sm text-[var(--ws-text-primary)] outline-none focus:border-[var(--ws-accent)]"
             >
-              <option value="">Select phase...</option>
-              {phases.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+              <option value="">Select funnel...</option>
+              {funnels.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
           </div>
         )}
 
-        {/* Phase Indicator */}
-        {currentPhase && (
+        {/* Funnel Indicator */}
+        {currentFunnel && (
           <Badge variant="muted">
-            Phase {currentPhase.index + 1}/{currentPhase.total}: {currentPhase.name}
-            {" "}({currentPhase.messageCount}/{currentPhase.maxMessages} msgs)
+            Funnel {currentFunnel.index + 1}/{currentFunnel.total}: {currentFunnel.name}
           </Badge>
         )}
 
@@ -592,11 +624,11 @@ function TestChatTab() {
             </p>
           ) : (
             <div className="space-y-4">
-              {/* Phase Action */}
+              {/* Conversation Action */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--ws-text-muted)]">Phase action:</span>
-                <Badge variant={reasoning.phaseAction === "advance" ? "success" : reasoning.phaseAction === "escalate" ? "warning" : "muted"}>
-                  {reasoning.phaseAction}
+                <span className="text-xs text-[var(--ws-text-muted)]">Conversation action:</span>
+                <Badge variant={reasoning.funnelAction === "advance" ? "success" : reasoning.funnelAction === "escalate" ? "warning" : "muted"}>
+                  {reasoning.funnelAction}
                 </Badge>
               </div>
 

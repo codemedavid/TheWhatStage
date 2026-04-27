@@ -8,7 +8,10 @@ import {
   type CachedPage,
 } from "@/lib/fb/page-cache";
 import { handleMessage } from "@/lib/ai/conversation-engine";
-import { sendMessage, sendSenderAction } from "@/lib/fb/send";
+import { getOrAssignCampaign } from "@/lib/ai/campaign-assignment";
+import { sendMessage, sendSenderAction, FacebookUnreachableLeadError } from "@/lib/fb/send";
+import { markLeadUnreachable } from "@/lib/fb/lead-reachability";
+import { fetchMessengerProfile } from "@/lib/fb/profile";
 import type { Database } from "@/types/database";
 import { buildActionPageUrl } from "@/lib/fb/action-url";
 import { getAppHost, getAppProtocol } from "@/lib/supabase/cookie-domain";
@@ -165,38 +168,45 @@ async function processMessagingEvent(
       .eq("id", lead.id);
   }
 
-  // Fetch FB profile name if we don't have one yet
+  // Fetch FB profile name if we don't have one yet — uses a tiered fetcher
+  // that falls back to the Conversations API when the direct User Profile
+  // call returns subcode 33 ("PSID not resolvable").
   if (!lead.fb_name) {
-    try {
-      const profileRes = await fetch(
-        `https://graph.facebook.com/v21.0/${psid}?fields=first_name,last_name,name,profile_pic&access_token=${pageToken}`
-      );
-      if (profileRes.ok) {
-        const profile = await profileRes.json();
-        const updates: Record<string, string> = {};
-        if (profile.name) updates.fb_name = profile.name;
-        if (profile.first_name) updates.first_name = profile.first_name;
-        if (profile.last_name) updates.last_name = profile.last_name;
-        if (profile.profile_pic) updates.fb_profile_pic = profile.profile_pic;
-        if (Object.keys(updates).length > 0) {
-          await supabase.from("leads").update(updates).eq("id", lead.id);
-        } else {
-          console.warn(`FB profile API returned no name fields for psid: ${psid}`);
-        }
-      } else {
-        const errBody = await profileRes.text();
-        // Subcode 33 = PSID not resolvable (app lacks Advanced Access for User Profile,
-        // or user is not a tester/admin in dev mode). Expected pre-App-Review.
-        const isExpectedDevModeError = errBody.includes('"error_subcode":33');
-        if (isExpectedDevModeError) {
-          console.warn(`FB profile unavailable for psid ${psid} (subcode 33 — expected without Advanced Access / App Review)`);
-        } else {
-          console.error(`FB profile API error for psid ${psid}: ${profileRes.status} — ${errBody}`);
-        }
+    const profile = await fetchMessengerProfile(psid, pageToken);
+    if (profile.source !== "none") {
+      const updates: Record<string, string> = {};
+      if (profile.name) updates.fb_name = profile.name;
+      if (profile.first_name) updates.first_name = profile.first_name;
+      if (profile.last_name) updates.last_name = profile.last_name;
+      if (profile.profile_pic) updates.fb_profile_pic = profile.profile_pic;
+      if (Object.keys(updates).length > 0) {
+        await supabase.from("leads").update(updates).eq("id", lead.id);
       }
-    } catch (err) {
-      console.error(`FB profile fetch failed for psid ${psid}:`, err);
+    } else {
+      console.warn(
+        `FB profile unavailable for psid ${psid} via any method ` +
+          `(direct User Profile + Conversations API both failed)`
+      );
     }
+  }
+
+  // Ensure the lead has a campaign assignment on every inbound event.
+  // No-op when already assigned; otherwise routes via running experiment
+  // or falls back to the tenant's primary campaign. Wrapped so a failure
+  // here never aborts message storage or reply generation downstream.
+  try {
+    const assigned = await getOrAssignCampaign(lead.id, tenantId);
+    if (!assigned) {
+      console.warn(
+        `[webhook] no campaign assigned for lead ${lead.id} (tenant ${tenantId})`
+      );
+    }
+  } catch (e) {
+    console.error(
+      `[webhook] getOrAssignCampaign threw for lead ${lead.id}: ${
+        e instanceof Error ? e.message : String(e)
+      }`
+    );
   }
 
   // 2. Upsert conversation
@@ -325,8 +335,28 @@ async function generateAndSendReply(params: {
       leadMessageId,
     });
 
-    // If bot is paused (human handoff), don't send anything
+    // If the engine produced no message, log WHY before swallowing.
+    // Without this it's invisible: the lead just sees the typing bubble blink
+    // and never receives a reply.
     if (engineOutput.paused || !engineOutput.message) {
+      const reason = engineOutput.paused
+        ? "engine_paused (bot_paused_at set OR no funnels configured for campaign)"
+        : "empty_llm_message (LLM/parser returned empty string)";
+      console.warn(
+        `No reply sent for lead ${leadId} (conversation ${conversationId}): ${reason}. ` +
+          `paused=${engineOutput.paused} messageLen=${engineOutput.message?.length ?? 0} ` +
+          `phase="${engineOutput.currentPhase}" confidence=${engineOutput.confidence}`
+      );
+      await supabase.from("lead_events").insert({
+        tenant_id: tenantId,
+        lead_id: leadId,
+        type: "send_failed",
+        payload: {
+          reason: engineOutput.paused ? "engine_paused" : "empty_llm_message",
+          phase: engineOutput.currentPhase,
+          confidence: engineOutput.confidence,
+        },
+      } as Database["public"]["Tables"]["lead_events"]["Insert"]);
       await sendSenderAction(psid, "typing_off", pageToken);
       return;
     }
@@ -360,7 +390,8 @@ async function generateAndSendReply(params: {
         .from("knowledge_images")
         .select("url")
         .eq("id", imageId)
-        .single();
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
 
       if (image?.url) {
         const imgResult = await sendMessage(psid, { type: "image", url: image.url }, pageToken);
@@ -384,14 +415,54 @@ async function generateAndSendReply(params: {
         .eq("tenant_id", tenantId)
         .single();
 
+      if (!actionPage) {
+        console.warn(
+          `Action button skipped: action_pages row missing for id=${engineOutput.actionButton.actionPageId} tenant=${tenantId}`
+        );
+        await supabase.from("lead_events").insert({
+          tenant_id: tenantId,
+          lead_id: leadId,
+          type: "send_failed",
+          payload: {
+            reason: "action_page_missing_or_cross_tenant",
+            action_page_id: engineOutput.actionButton.actionPageId,
+          },
+        } as Database["public"]["Tables"]["lead_events"]["Insert"]);
+      }
+
       if (actionPage) {
         const { data: tenantData } = await supabase
           .from("tenants")
           .select("slug, fb_app_secret")
           .eq("id", tenantId)
-          .single();
+          .maybeSingle();
 
-        if (tenantData?.fb_app_secret && tenantData.slug) {
+        // Sign with the tenant's own FB app secret if set, else fall back to
+        // the platform-wide FB_APP_SECRET. The action-page submission verifier
+        // applies the same fallback so signatures stay symmetric.
+        const signingSecret = tenantData?.fb_app_secret ?? process.env.FB_APP_SECRET ?? null;
+
+        if (!signingSecret || !tenantData?.slug) {
+          console.warn(
+            `Action button skipped: cannot sign URL for tenant ${tenantId} ` +
+              `(slug=${tenantData?.slug ?? "null"}, has_tenant_secret=${!!tenantData?.fb_app_secret}, ` +
+              `has_env_secret=${!!process.env.FB_APP_SECRET}). ` +
+              `Set tenants.slug, and either tenants.fb_app_secret or env FB_APP_SECRET.`
+          );
+          await supabase.from("lead_events").insert({
+            tenant_id: tenantId,
+            lead_id: leadId,
+            type: "send_failed",
+            payload: {
+              reason: "tenant_missing_slug_or_app_secret",
+              has_slug: !!tenantData?.slug,
+              has_tenant_secret: !!tenantData?.fb_app_secret,
+              has_env_secret: !!process.env.FB_APP_SECRET,
+            },
+          } as Database["public"]["Tables"]["lead_events"]["Insert"]);
+        }
+
+        if (signingSecret && tenantData?.slug) {
           const appDomain = getAppHost() ?? "whatstage.com";
           const protocol = getAppProtocol();
 
@@ -399,7 +470,7 @@ async function generateAndSendReply(params: {
             tenantSlug: tenantData.slug,
             actionPageSlug: actionPage.slug,
             psid,
-            appSecret: tenantData.fb_app_secret,
+            appSecret: signingSecret,
             appDomain,
             protocol,
           });
@@ -410,6 +481,12 @@ async function generateAndSendReply(params: {
             actionPage.cta_text ||
             "Check this out";
 
+          // Resolve button label: AI-generated > action page title fallback.
+          // The AI label is already trimmed to Meta's 20-char limit by the
+          // decision parser. The title fallback is also trimmed defensively.
+          const buttonLabel =
+            engineOutput.actionButton.label ?? actionPage.title.slice(0, 20);
+
           const btnResult = await sendMessage(
             psid,
             {
@@ -418,7 +495,7 @@ async function generateAndSendReply(params: {
               buttons: [
                 {
                   type: "web_url",
-                  title: actionPage.title.slice(0, 20),
+                  title: buttonLabel,
                   url: actionUrl,
                 },
               ],
@@ -431,7 +508,7 @@ async function generateAndSendReply(params: {
             conversation_id: conversationId,
             direction: "out",
             text: ctaText,
-            attachments: [{ type: "button", url: actionUrl, title: actionPage.title }],
+            attachments: [{ type: "button", url: actionUrl, title: buttonLabel }],
             mid: btnResult.messageId,
           } as Database["public"]["Tables"]["messages"]["Insert"]);
 
@@ -450,6 +527,47 @@ async function generateAndSendReply(params: {
       }
     }
   } catch (error) {
-    console.error("Failed to generate/send reply:", error);
+    // Always clear the typing indicator on failure, otherwise the lead
+    // sees the bubble forever and assumes the bot is "thinking".
+    try {
+      await sendSenderAction(psid, "typing_off", pageToken);
+    } catch {
+      // ignore — secondary failure
+    }
+
+    if (error instanceof FacebookUnreachableLeadError) {
+      console.warn(
+        `Lead ${leadId} unreachable via Messenger (${error.reason}, code=${error.fbCode}/${error.fbSubcode}). ` +
+          `Likely cause: FB app lacks Advanced Access for pages_messaging, recipient is not a tester, ` +
+          `or the 24h messaging window has expired.`
+      );
+      await markLeadUnreachable(supabase, leadId, error);
+      await supabase.from("lead_events").insert({
+        tenant_id: tenantId,
+        lead_id: leadId,
+        type: "send_failed",
+        payload: {
+          reason: error.reason,
+          fb_code: error.fbCode,
+          fb_subcode: error.fbSubcode,
+        },
+      } as Database["public"]["Tables"]["lead_events"]["Insert"]);
+      return;
+    }
+    const errMessage = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    console.error(
+      `Failed to generate/send reply for lead ${leadId} (conversation ${conversationId}): ${errMessage}`,
+      errStack
+    );
+    await supabase.from("lead_events").insert({
+      tenant_id: tenantId,
+      lead_id: leadId,
+      type: "send_failed",
+      payload: {
+        reason: "engine_threw",
+        error_message: errMessage,
+      },
+    } as Database["public"]["Tables"]["lead_events"]["Insert"]);
   }
 }

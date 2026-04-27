@@ -1,26 +1,23 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { Json } from "@/types/database";
 
 export interface Campaign {
   id: string;
   tenant_id: string;
   name: string;
   description: string | null;
+  main_goal: string | null;
+  campaign_personality: string | null;
   goal: string;
-  goal_config: Record<string, unknown>;
+  goal_config: Json;
   is_primary: boolean;
   status: string;
   follow_up_delay_minutes: number;
   follow_up_message: string | null;
-  campaign_plan: {
-    goal_summary: string;
-    selling_approach: string;
-    buyer_context: string;
-    key_behaviors: string[];
-    phase_outline: { name: string; purpose: string }[];
-  } | null;
-  campaign_rules: string[];
+  campaign_plan: Json | null;
+  campaign_rules: string[] | null;
   created_at: string;
   updated_at: string;
 }

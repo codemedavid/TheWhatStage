@@ -13,10 +13,10 @@ import { listFunnelsForCampaign } from "@/lib/db/campaign-funnels";
 import {
   getOrInitFunnelState,
   advanceFunnel,
-  incrementFunnelMessageCount,
 } from "@/lib/ai/funnel-runtime";
 import { funnelToStep } from "@/lib/ai/step-context";
 import { ACTION_PAGE_TYPES, type ActionPageType } from "@/lib/ai/funnel-templates";
+import type { Database } from "@/types/database";
 
 export interface EngineInput {
   tenantId: string;
@@ -39,23 +39,13 @@ export interface EngineOutput {
   actionButton?: {
     actionPageId: string;
     ctaText: string;
+    label: string | null;
   };
 }
 
-const HEDGING_PHRASES = [
-  "I believe",
-  "If I'm not mistaken,",
-  "From what I understand,",
-  "I think",
-  "As far as I know,",
-];
-
-function applyHedging(message: string, confidence: number): string {
-  if (confidence >= 0.7 || confidence < 0.4) return message;
-  const phrase = HEDGING_PHRASES[Math.floor(Math.random() * HEDGING_PHRASES.length)];
-  const lowerFirst = message.charAt(0).toLowerCase() + message.slice(1);
-  return `${phrase} ${lowerFirst}`;
-}
+// Minimum LLM-self-rated button-send confidence required to actually send the
+// button. Below this we drop it: a hedged button kills CTR.
+const BUTTON_CONFIDENCE_THRESHOLD = 0.65;
 
 export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   const { tenantId, leadId, businessName, conversationId, leadMessage, leadMessageId } = input;
@@ -66,7 +56,8 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     .from("conversations")
     .select("bot_paused_at")
     .eq("id", conversationId)
-    .single();
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
 
   if (conversation?.bot_paused_at) {
     const { data: tenant } = await supabase
@@ -130,6 +121,18 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
 
   // Step 0: Get or assign campaign
   const campaignId = await getOrAssignCampaign(leadId, tenantId);
+  if (!campaignId) {
+    return {
+      message: "",
+      phaseAction: "stay",
+      confidence: 0,
+      imageIds: [],
+      currentPhase: "",
+      escalated: false,
+      paused: true,
+      completedFunnel: false,
+    };
+  }
 
   // Step 1: Load funnels for the campaign
   const funnels = await listFunnelsForCampaign(supabase, campaignId);
@@ -148,15 +151,18 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
 
   const { data: campaignData } = await supabase
     .from("campaigns")
-    .select("name, description, goal, campaign_rules")
+    .select("name, description, goal, main_goal, campaign_personality, campaign_rules")
     .eq("id", campaignId)
-    .single();
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
 
   const campaignContext: CampaignContext | undefined = campaignData
     ? {
         name: campaignData.name,
         description: campaignData.description,
         goal: campaignData.goal,
+        mainGoal: (campaignData as { main_goal?: string | null }).main_goal ?? null,
+        campaignPersonality: (campaignData as { campaign_personality?: string | null }).campaign_personality ?? null,
         campaignRules: (campaignData.campaign_rules as string[] | null) ?? [],
       }
     : undefined;
@@ -164,14 +170,42 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   // Step 1b: Funnel state
   const funnelState = await getOrInitFunnelState(supabase, conversationId, campaignId, funnels);
 
-  // Step 1c: Action page metadata for the current funnel
+  // Step 1c: Action page metadata for the current funnel.
+  // tenant_id filter prevents cross-tenant page reads AND surfaces the
+  // "funnel points at a page from another tenant" data-drift case as a
+  // graceful pause instead of an uncaught throw.
   const { data: pageRow } = await supabase
     .from("action_pages")
     .select("title, type")
     .eq("id", funnelState.funnel.actionPageId)
-    .single();
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (!pageRow) {
-    throw new Error(`Action page missing for funnel ${funnelState.funnel.id}`);
+    console.warn(
+      `Funnel ${funnelState.funnel.id} (campaign ${campaignId}, tenant ${tenantId}) ` +
+        `references missing or cross-tenant action_page ${funnelState.funnel.actionPageId}. ` +
+        `Pausing reply for this conversation.`
+    );
+    await supabase.from("lead_events").insert({
+      tenant_id: tenantId,
+      lead_id: leadId,
+      type: "send_failed",
+      payload: {
+        reason: "funnel_action_page_missing",
+        funnel_id: funnelState.funnel.id,
+        action_page_id: funnelState.funnel.actionPageId,
+      },
+    } as Database["public"]["Tables"]["lead_events"]["Insert"]);
+    return {
+      message: "",
+      phaseAction: "stay",
+      confidence: 0,
+      imageIds: [],
+      currentPhase: "",
+      escalated: false,
+      paused: true,
+      completedFunnel: false,
+    };
   }
   const pageType = pageRow.type as string;
   if (!ACTION_PAGE_TYPES.includes(pageType as ActionPageType)) {
@@ -192,7 +226,6 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     campaign: { goal: campaignData?.goal ?? "stage_reached" },
     page: { title: pageRow.title as string, type: pageType as ActionPageType },
     tone,
-    messageCount: funnelState.messageCount,
   });
 
   // Step 2: Retrieve relevant knowledge
@@ -251,15 +284,57 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   const decision = parseDecision(llmResponse.content);
 
   // Step 7b: Validate action button selection
-  let actionButton: { actionPageId: string; ctaText: string } | undefined;
+  // Each funnel step has exactly one allowed button. LLMs frequently hallucinate
+  // a friendly name (e.g. "sign_up") instead of copying the UUID verbatim, so
+  // when intent to send a button is clear we substitute the single allowed ID.
+  let actionButton: { actionPageId: string; ctaText: string; label: string | null } | undefined;
   if (decision.actionButtonId) {
     const isValid = step.actionButtonIds.includes(decision.actionButtonId);
+    // Drop a button the LLM wasn't confident about — a low-confidence button
+    // send hurts CTR more than no button at all. The prompt tells the LLM
+    // about this threshold so it self-gates.
+    const buttonConfidenceOk =
+      decision.buttonConfidence === null ||
+      decision.buttonConfidence === undefined ||
+      decision.buttonConfidence >= BUTTON_CONFIDENCE_THRESHOLD;
 
-    if (isValid) {
+    if (!buttonConfidenceOk) {
+      console.warn(
+        `Dropping action button for conversation ${conversationId}: ` +
+          `button_confidence=${decision.buttonConfidence} below threshold ${BUTTON_CONFIDENCE_THRESHOLD}.`
+      );
+    } else if (isValid) {
+      if (!decision.ctaText) {
+        console.warn(
+          `LLM sent action_button_id without cta_text for conversation ${conversationId}. ` +
+            `Falling back to action_pages.cta_text or generic — CTR will suffer.`
+        );
+      }
       actionButton = {
         actionPageId: decision.actionButtonId,
         ctaText: decision.ctaText ?? "",
+        label: decision.buttonLabel,
       };
+    } else if (step.actionButtonIds.length === 1) {
+      console.warn(
+        `LLM emitted non-UUID action_button_id="${decision.actionButtonId}" for conversation ${conversationId}. ` +
+          `Substituting the single allowed button id=${step.actionButtonIds[0]}.`
+      );
+      if (!decision.ctaText) {
+        console.warn(
+          `LLM also omitted cta_text — using default. CTR will suffer.`
+        );
+      }
+      actionButton = {
+        actionPageId: step.actionButtonIds[0],
+        ctaText: decision.ctaText ?? "",
+        label: decision.buttonLabel,
+      };
+    } else {
+      console.warn(
+        `LLM emitted invalid action_button_id="${decision.actionButtonId}" for conversation ${conversationId}. ` +
+          `Allowed=[${step.actionButtonIds.join(", ")}]. Button dropped.`
+      );
     }
   }
 
@@ -320,17 +395,18 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   }
   // "stay" is a no-op
 
-  // Step 12: Increment message count
-  await incrementFunnelMessageCount(supabase, conversationId);
-
   // Step 12b: Extract knowledge from lead message (non-blocking)
   extractKnowledge({
     tenantId,
     leadId,
     messageText: leadMessage,
     messageId: leadMessageId ?? null,
-  }).catch(() => {
-    // Swallowed — extraction is best-effort
+  }).catch((err) => {
+    console.warn(
+      `extractKnowledge failed for lead ${leadId} (tenant ${tenantId}): ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
   });
 
   // Step 12c: Check for conversation idle gap and trigger summary
@@ -347,14 +423,19 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     const gap = Date.now() - new Date(lastMsg.created_at).getTime();
     const TEN_MINUTES_MS = 10 * 60 * 1000;
     if (gap >= TEN_MINUTES_MS) {
-      generateLeadSummary({ tenantId, leadId, conversationId }).catch(() => {
-        // Swallowed — summary is best-effort
+      generateLeadSummary({ tenantId, leadId, conversationId }).catch((err) => {
+        console.warn(
+          `generateLeadSummary failed for lead ${leadId} (tenant ${tenantId}): ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
       });
     }
   }
 
-  // Step 13: Apply confidence hedging to cleaned message
-  const finalMessage = applyHedging(parsed.cleanMessage, decision.confidence);
+  // Step 13: Use the cleaned LLM message verbatim. Confidence is used for
+  // routing (escalate, drop button) — not for rewriting the bot's voice.
+  const finalMessage = parsed.cleanMessage;
 
   // Step 14: Return EngineOutput
   return {

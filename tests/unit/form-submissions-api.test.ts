@@ -15,6 +15,17 @@ vi.mock("@/lib/fb/signature", () => ({
   verifyActionPageSignature: vi.fn((psid: string, sig: string) => sig === "valid-sig"),
 }));
 
+vi.mock("@/lib/db/campaign-funnels", () => ({
+  listFunnelsForCampaign: vi.fn(),
+}));
+
+vi.mock("@/lib/ai/funnel-runtime", () => ({
+  markFunnelCompletedByActionPage: vi.fn(),
+}));
+
+import { listFunnelsForCampaign } from "@/lib/db/campaign-funnels";
+import { markFunnelCompletedByActionPage } from "@/lib/ai/funnel-runtime";
+
 const params = Promise.resolve({ id: "action-page-1" });
 
 describe("POST /api/action-pages/[id]/submissions", () => {
@@ -121,5 +132,118 @@ describe("POST /api/action-pages/[id]/submissions", () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain("email");
+  });
+
+  it("advances the current funnel when the submitted action page matches campaign state", async () => {
+    vi.mocked(listFunnelsForCampaign).mockResolvedValue([
+      {
+        id: "funnel-1",
+        campaignId: "campaign-1",
+        tenantId: "t1",
+        position: 0,
+        actionPageId: "action-page-1",
+        pageDescription: null,
+        pitch: null,
+        qualificationQuestions: [],
+        chatRules: ["Send the form"],
+        createdAt: "now",
+        updatedAt: "now",
+      },
+    ]);
+
+    mockFrom
+      // action page
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: "action-page-1",
+                  tenant_id: "t1",
+                  title: "Quote Form",
+                  config: { thank_you_message: "Thanks!" },
+                  published: true,
+                },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      })
+      // tenant
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { fb_app_secret: "secret123", fb_page_token: null },
+              error: null,
+            }),
+          }),
+        }),
+      })
+      // fields
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }),
+        }),
+      })
+      // lead
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: "lead-1" }, error: null }),
+            }),
+          }),
+        }),
+      })
+      // submission insert
+      .mockReturnValueOnce({
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { id: "submission-1" }, error: null }),
+          }),
+        }),
+      })
+      // lead event insert
+      .mockReturnValueOnce({
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      })
+      // conversation lookup
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { id: "conversation-1", current_campaign_id: "campaign-1" },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      });
+
+    const { POST } = await import("@/app/api/action-pages/[id]/submissions/route");
+    const req = new Request("http://localhost/api/action-pages/action-page-1/submissions", {
+      method: "POST",
+      body: JSON.stringify({ psid: "user-1", sig: "valid-sig", data: { name: "John" } }),
+    });
+    const res = await POST(req, { params });
+
+    expect(res.status).toBe(200);
+    expect(listFunnelsForCampaign).toHaveBeenCalledWith(expect.anything(), "campaign-1");
+    expect(markFunnelCompletedByActionPage).toHaveBeenCalledWith(
+      expect.anything(),
+      "conversation-1",
+      "action-page-1",
+      expect.arrayContaining([
+        expect.objectContaining({ id: "funnel-1", actionPageId: "action-page-1" }),
+      ])
+    );
   });
 });

@@ -10,6 +10,11 @@ vi.mock("@/lib/db/campaign-funnels", () => ({
 
 // Separate controllable mock fns so individual tests can override behaviour
 const insertSingle = vi.fn().mockResolvedValue({ data: { id: "camp-1" }, error: null });
+const insertCampaign = vi.fn(() => ({
+  select: vi.fn(() => ({
+    single: insertSingle,
+  })),
+}));
 const lookupPages = vi.fn().mockResolvedValue({
   data: [{ id: "p-sales", type: "sales", tenant_id: "t1" }],
   error: null,
@@ -20,11 +25,7 @@ vi.mock("@/lib/supabase/service", () => ({
     from: vi.fn((table: string) => {
       if (table === "campaigns") {
         return {
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: insertSingle,
-            })),
-          })),
+          insert: insertCampaign,
         };
       }
       // action_pages lookup
@@ -44,15 +45,24 @@ import { requireTenantSession } from "@/lib/auth/session";
 const validBody = {
   name: "Coaching",
   description: "Sell coaching",
+  mainGoal: "Sell the coaching package to qualified leads.",
+  campaignPersonality: "Direct, founder-led, practical.",
   topLevelRules: ["Friendly tone"],
   funnels: [
-    { actionPageId: "p-sales", pageDescription: null, chatRules: ["Push to page"] },
+    {
+      actionPageId: "p-sales",
+      pageDescription: null,
+      pitch: "Show why the package solves their current bottleneck.",
+      qualificationQuestions: ["What are you trying to grow right now?"],
+      chatRules: ["Push to page"],
+    },
   ],
 };
 
 beforeEach(() => {
   vi.mocked(requireTenantSession).mockResolvedValue({ tenantId: "t1", userId: "u1" });
   vi.mocked(saveFunnelsForCampaign).mockResolvedValue([]);
+  insertCampaign.mockClear();
   insertSingle.mockResolvedValue({ data: { id: "camp-1" }, error: null });
   lookupPages.mockResolvedValue({
     data: [{ id: "p-sales", type: "sales", tenant_id: "t1" }],
@@ -80,6 +90,12 @@ describe("POST /api/campaigns/ai-builder/save", () => {
       "camp-1",
       validBody.funnels
     );
+    expect(insertCampaign).toHaveBeenCalledWith(
+      expect.objectContaining({
+        main_goal: "Sell the coaching package to qualified leads.",
+        campaign_personality: "Direct, founder-led, practical.",
+      })
+    );
   });
 
   it("401 — when requireTenantSession throws UNAUTHORIZED", async () => {
@@ -94,6 +110,8 @@ describe("POST /api/campaigns/ai-builder/save", () => {
       funnels: Array(4).fill({
         actionPageId: "p-sales",
         pageDescription: null,
+        pitch: null,
+        qualificationQuestions: [],
         chatRules: ["r"],
       }),
     };
@@ -129,8 +147,20 @@ describe("POST /api/campaigns/ai-builder/save", () => {
     const body = {
       ...validBody,
       funnels: [
-        { actionPageId: "p-form", pageDescription: null, chatRules: ["Educate"] },
-        { actionPageId: "p-sales", pageDescription: null, chatRules: ["Close"] },
+        {
+          actionPageId: "p-form",
+          pageDescription: null,
+          pitch: null,
+          qualificationQuestions: ["What do you want to improve first?"],
+          chatRules: ["Educate"],
+        },
+        {
+          actionPageId: "p-sales",
+          pageDescription: null,
+          pitch: "Close them on the package.",
+          qualificationQuestions: [],
+          chatRules: ["Close"],
+        },
       ],
     };
     const res = await POST(makeReq(body) as any);

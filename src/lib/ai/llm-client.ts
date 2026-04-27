@@ -3,8 +3,8 @@ const HF_API_URL =
 
 // Primary model + fallbacks for resilience when a provider is down
 const MODELS = [
-  "deepseek-ai/DeepSeek-V4-Pro:together",
   "meta-llama/Llama-3.3-70B-Instruct",
+  "meta-llama/Llama-3.1-8B-Instruct:novita",
   "Qwen/Qwen2.5-72B-Instruct",
 ] as const;
 

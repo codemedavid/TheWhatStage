@@ -27,6 +27,7 @@ export default function ActionPageEditor() {
 
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [fieldsError, setFieldsError] = useState<string | null>(null);
   const [actionPage, setActionPage] = useState<ActionPage | null>(null);
   const [fields, setFields] = useState<BuilderField[]>([]);
 
@@ -41,6 +42,7 @@ export default function ActionPageEditor() {
       try {
         setLoading(true);
         setNotFound(false);
+        setFieldsError(null);
         setActionPage(null);
         setFields([]);
 
@@ -65,9 +67,9 @@ export default function ActionPageEditor() {
 
         if (cancelled) return;
 
-        setActionPage({ ...page, config });
-        setLoading(false);
-
+        // Fetch fields BEFORE marking loaded — FormBuilder captures `initialFields`
+        // once via useState, so rendering it with [] before fields arrive freezes
+        // the editor with empty fields and any save would wipe the real ones.
         fieldsController = new AbortController();
         fieldsTimeout = window.setTimeout(() => fieldsController?.abort(), 8000);
 
@@ -75,7 +77,11 @@ export default function ActionPageEditor() {
           const fieldsRes = await fetch(`/api/action-pages/${id}/fields`, {
             signal: fieldsController.signal,
           });
-          if (!fieldsRes.ok || cancelled) return;
+          if (cancelled) return;
+          if (!fieldsRes.ok) {
+            const body = await fieldsRes.json().catch(() => ({}));
+            throw new Error((body as { error?: string }).error ?? `Failed to load fields: ${fieldsRes.status}`);
+          }
           const fieldsData = await fieldsRes.json();
           const rawFields = Array.isArray(fieldsData.fields) ? fieldsData.fields : [];
           const builderFields: BuilderField[] = rawFields.map(
@@ -101,10 +107,17 @@ export default function ActionPageEditor() {
               lead_mapping: (f.lead_mapping as BuilderField["lead_mapping"]) ?? null,
             })
           );
-          setFields(builderFields);
+          if (!cancelled) {
+            setFields(builderFields);
+            setActionPage({ ...page, config });
+          }
         } catch (err) {
-          if (!cancelled && !(err instanceof DOMException && err.name === "AbortError")) {
+          if (cancelled) return;
+          if (err instanceof DOMException && err.name === "AbortError") {
+            setFieldsError("Loading fields timed out. Refresh to try again.");
+          } else {
             console.warn("Error loading action page fields:", err);
+            setFieldsError(err instanceof Error ? err.message : "Failed to load fields");
           }
         } finally {
           if (fieldsTimeout) window.clearTimeout(fieldsTimeout);
@@ -171,6 +184,14 @@ export default function ActionPageEditor() {
   }
 
   if (notFound || !actionPage) {
+    if (fieldsError) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-2">
+          <p className="text-base font-medium text-[var(--ws-text-primary)]">Couldn&apos;t load form</p>
+          <p className="text-sm text-[var(--ws-text-muted)]">{fieldsError}</p>
+        </div>
+      );
+    }
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2">
         <p className="text-base font-medium text-[var(--ws-text-primary)]">Page not found</p>

@@ -6,7 +6,10 @@ import { generateResponse } from "@/lib/ai/llm-client";
 
 const GENERAL_TOP_K = 15;
 const PRODUCT_TOP_K = 15;
-const RERANK_CONFIDENCE_THRESHOLD = 0.6;
+// Lowered from 0.6 — short Taglish queries against English-leaning KB content
+// score 0.4–0.55 even when the chunk is genuinely relevant. Higher threshold
+// was dropping useful pass-1 results, forcing a wasted pass-2 expansion.
+const RERANK_CONFIDENCE_THRESHOLD = 0.45;
 
 export interface RetrievalCampaignContext {
   name: string;
@@ -74,25 +77,13 @@ export async function retrieveKnowledge(
   };
 }
 
-const VAGUE_HIGH_INTENT_PATTERNS = [
-  /\binterested\b/i,
-  /\bdetails?\b/i,
-  /\bpa\s*info\b/i,
-  /\bhm\b/i,
-  /\bhow much\b/i,
-  /\bavailable\b/i,
-  /\bavail\b/i,
-];
-
-function isVagueHighIntentQuery(query: string): boolean {
-  const normalized = query.trim();
-  if (!normalized) return false;
-  if (normalized.length > 80) return false;
-  return VAGUE_HIGH_INTENT_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-
+// Always enrich the embedding query with campaign + business + recent context.
+// Previously gated by `isVagueHighIntentQuery`, which meant short Taglish
+// messages like "uy" or "magkano?" were embedded raw — useless for vector
+// search against a Whatstage-specific KB. Enriching always produces stronger
+// recall for the cost of one extra string concat.
 function buildSearchQuery(query: string, context?: RetrievalContext): string {
-  if (!context || !isVagueHighIntentQuery(query)) return query;
+  if (!context) return query;
 
   const lines = [`Lead message: ${query}`];
 

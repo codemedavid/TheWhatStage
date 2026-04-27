@@ -30,6 +30,19 @@ describe("parseDecision", () => {
     expect(result.phaseAction).toBe("advance");
   });
 
+  it("prefers funnel_action over legacy phase_action", () => {
+    const raw = JSON.stringify({
+      message: "Great, let's move forward.",
+      funnel_action: "advance",
+      phase_action: "stay",
+      confidence: 0.9,
+      image_ids: [],
+    });
+
+    const result = parseDecision(raw);
+    expect(result.phaseAction).toBe("advance");
+  });
+
   it("parses escalate action", () => {
     const raw = JSON.stringify({
       message: "Let me get someone who can help.",
@@ -42,7 +55,7 @@ describe("parseDecision", () => {
     expect(result.phaseAction).toBe("escalate");
   });
 
-  it("forces escalate when confidence < 0.4", () => {
+  it("respects LLM's stay choice even when confidence is low (parser no longer auto-escalates on low confidence — friendly greetings stay engaged)", () => {
     const raw = JSON.stringify({
       message: "I think so...",
       phase_action: "stay",
@@ -51,7 +64,7 @@ describe("parseDecision", () => {
     });
 
     const result = parseDecision(raw);
-    expect(result.phaseAction).toBe("escalate");
+    expect(result.phaseAction).toBe("stay");
     expect(result.confidence).toBe(0.2);
   });
 
@@ -67,7 +80,7 @@ describe("parseDecision", () => {
     expect(result.confidence).toBe(1.0);
   });
 
-  it("clamps negative confidence to 0.0 and forces escalate", () => {
+  it("clamps negative confidence to 0.0 and respects LLM's stay choice", () => {
     const raw = JSON.stringify({
       message: "Hmm...",
       phase_action: "stay",
@@ -77,7 +90,7 @@ describe("parseDecision", () => {
 
     const result = parseDecision(raw);
     expect(result.confidence).toBe(0.0);
-    expect(result.phaseAction).toBe("escalate");
+    expect(result.phaseAction).toBe("stay");
   });
 
   it("extracts JSON from markdown code fences", () => {

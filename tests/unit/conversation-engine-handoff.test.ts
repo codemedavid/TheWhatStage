@@ -2,20 +2,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/db/campaign-funnels", () => ({
   listFunnelsForCampaign: vi.fn(async () => [
-    { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, pitch: null, qualificationQuestions: [], chatRules: ["r"], createdAt: "n", updatedAt: "n" },
   ]),
 }));
 vi.mock("@/lib/ai/funnel-runtime", () => ({
   getOrInitFunnelState: vi.fn(async () => ({
-    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, pitch: null, qualificationQuestions: [], chatRules: ["r"], createdAt: "n", updatedAt: "n" },
     position: 0,
     messageCount: 0,
+    buttonSentAtCount: null,
   })),
   advanceFunnel: vi.fn(async () => ({
-    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, pitch: null, qualificationQuestions: [], chatRules: ["r"], createdAt: "n", updatedAt: "n" },
     position: 0, advanced: false, completed: true,
   })),
   incrementFunnelMessageCount: vi.fn(async () => undefined),
+  markFunnelButtonSent: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/ai/retriever", () => ({
@@ -66,15 +68,19 @@ vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === "conversations") {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: conversationSelectData,
-                error: null,
-              }),
-            }),
+        const selectChain = {
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: conversationSelectData,
+            error: null,
           }),
+          single: vi.fn().mockResolvedValue({
+            data: conversationSelectData,
+            error: null,
+          }),
+        };
+        return {
+          select: vi.fn().mockReturnValue(selectChain),
           update: mockUpdate,
         };
       }
@@ -96,27 +102,35 @@ vi.mock("@/lib/supabase/service", () => ({
         };
       }
       if (table === "campaigns") {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { name: "Test Campaign", description: null, goal: "form_submit", campaign_rules: [] },
-                error: null,
-              }),
-            }),
+        const selectChain = {
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { name: "Test Campaign", description: null, goal: "form_submit", campaign_rules: [] },
+            error: null,
           }),
+          single: vi.fn().mockResolvedValue({
+            data: { name: "Test Campaign", description: null, goal: "form_submit", campaign_rules: [] },
+            error: null,
+          }),
+        };
+        return {
+          select: vi.fn().mockReturnValue(selectChain),
         };
       }
       if (table === "action_pages") {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { title: "Page", type: "form" },
-                error: null,
-              }),
-            }),
+        const selectChain = {
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { title: "Page", type: "form" },
+            error: null,
           }),
+          single: vi.fn().mockResolvedValue({
+            data: { title: "Page", type: "form" },
+            error: null,
+          }),
+        };
+        return {
+          select: vi.fn().mockReturnValue(selectChain),
         };
       }
       if (table === "knowledge_images") {
@@ -157,6 +171,7 @@ import { retrieveKnowledge } from "@/lib/ai/retriever";
 import { buildSystemPrompt } from "@/lib/ai/prompt-builder";
 import { generateResponse } from "@/lib/ai/llm-client";
 import { parseDecision } from "@/lib/ai/decision-parser";
+import type { LLMDecision } from "@/lib/ai/decision-parser";
 import { selectImages } from "@/lib/ai/image-selector";
 import { parseResponse } from "@/lib/ai/response-parser";
 import { handleMessage } from "@/lib/ai/conversation-engine";
@@ -170,9 +185,23 @@ const mockParseDecision = vi.mocked(parseDecision);
 const mockSelectImages = vi.mocked(selectImages);
 const mockParseResponse = vi.mocked(parseResponse);
 
+function mockDecision(overrides: Partial<LLMDecision>) {
+  mockParseDecision.mockReturnValue({
+    message: "Hello!",
+    phaseAction: "stay",
+    confidence: 0.85,
+    imageIds: [],
+    actionButtonId: null,
+    ctaText: null,
+    buttonConfidence: null,
+    buttonLabel: null,
+    ...overrides,
+  });
+}
+
 const defaultFunnel = {
   id: "f0", campaignId: "c1", tenantId: "t1", position: 0,
-  actionPageId: "p0", pageDescription: null, chatRules: ["r"],
+  actionPageId: "p0", pageDescription: null, pitch: null, qualificationQuestions: [], chatRules: ["r"],
   createdAt: "n", updatedAt: "n",
 };
 
@@ -185,18 +214,19 @@ const defaultInput = {
 };
 
 function setupNormalPipeline() {
-  mockGetOrInitFunnelState.mockResolvedValue({ funnel: defaultFunnel, position: 0, messageCount: 0 });
+  mockGetOrInitFunnelState.mockResolvedValue({ funnel: defaultFunnel, position: 0, messageCount: 0, buttonSentAtCount: null });
   mockRetrieveKnowledge.mockResolvedValue({
     status: "success",
     chunks: [{ id: "c1", content: "Info", similarity: 0.8, metadata: {} }],
     queryTarget: "general",
+    retrievalPass: 1,
   });
   mockBuildSystemPrompt.mockResolvedValue("system prompt");
   mockGenerateResponse.mockResolvedValue({
     content: '{"message":"Hello!","phase_action":"stay","confidence":0.85,"image_ids":[]}',
     finishReason: "stop",
   });
-  mockParseDecision.mockReturnValue({
+  mockDecision({
     message: "Hello!",
     phaseAction: "stay",
     confidence: 0.85,
@@ -274,7 +304,7 @@ describe("handleMessage — gate check (paused bot)", () => {
 
 describe("handleMessage — enriched escalation", () => {
   it("sets escalation_reason to 'llm_decision' and inserts escalated event", async () => {
-    mockParseDecision.mockReturnValue({
+    mockDecision({
       message: "I need a human agent",
       phaseAction: "escalate",
       confidence: 0.85,
@@ -306,7 +336,7 @@ describe("handleMessage — enriched escalation", () => {
   });
 
   it("sets escalation_reason to 'low_confidence' when confidence < 0.4", async () => {
-    mockParseDecision.mockReturnValue({
+    mockDecision({
       message: "Not sure about that",
       phaseAction: "escalate",
       confidence: 0.2,
@@ -332,7 +362,7 @@ describe("handleMessage — enriched escalation", () => {
   });
 
   it("sets escalation_reason to 'empty_response' when message is empty", async () => {
-    mockParseDecision.mockReturnValue({
+    mockDecision({
       message: "",
       phaseAction: "escalate",
       confidence: 0.85,
@@ -362,7 +392,7 @@ describe("handleMessage — enriched escalation", () => {
   });
 
   it("sets escalation_message_id to null when leadMessageId is not provided", async () => {
-    mockParseDecision.mockReturnValue({
+    mockDecision({
       message: "Need help",
       phaseAction: "escalate",
       confidence: 0.85,

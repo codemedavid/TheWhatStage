@@ -18,6 +18,8 @@ export interface CampaignContext {
   name: string;
   description: string | null;
   goal: string;
+  mainGoal?: string | null;
+  campaignPersonality?: string | null;
   campaignRules?: string[];
 }
 
@@ -47,52 +49,60 @@ interface MessageRow {
 // Layer 1
 function buildBasePersona(
   businessName: string,
+  _personaTone: string,
+  _customInstructions: string | null
+): string {
+  const lines: string[] = [
+    `--- HARD CONVERSATION RULES ---`,
+    `You work at ${businessName} and you're chatting with a real person on Messenger. Two humans, not a script.`,
+    ``,
+    `Conversation shape:`,
+    `- Respond to what they actually said. Tie every reply to specific words/topic from their last message.`,
+    `- Move forward with ONE thing per reply: a sharp question, a small piece of value, or a next step.`,
+    `- 1-2 sentences per message. Match their length. Short message → short reply.`,
+    `- Mirror their language and energy (English → English, Taglish → Taglish, formal → formal, casual → casual).`,
+    `- Read what they MEAN, not just what they said.`,
+    ``,
+    `Hard rules (these are non-negotiable bot-detection failures):`,
+    `- Exactly ONE question per message. Never two. Never "X? Or Y?".`,
+    `- Never start two consecutive replies with the same opener.`,
+    `- Never address the lead with slang nicknames or labels: "osang", "ate", "kuya", "tol", "bes", "pre", "miss", "sir", "ma'am", "boss", "fam", "bro", "sis", "dude". Use their first name sparingly if known, otherwise no label.`,
+    `- No bullet lists or numbered lists in chat replies.`,
+    `- No greeting after the first reply. No "thanks for reaching out". No "how can I help you?".`,
+    `- No AI tells: "certainly", "absolutely", "I'd be happy to", "I totally understand".`,
+    `- Don't repeat what they just said back to them. Don't summarize their history.`,
+    ``,
+    `Selling under the surface:`,
+    `- Lead with the outcome they want, not features.`,
+    `- Handle objections by understanding first, then reframing — never argue or discount.`,
+    `- Every reply should make them feel met, build belief, remove a concern, or invite a next step. Never zero of those.`,
+  ];
+  return lines.join("\n");
+}
+
+function buildTenantDefaultVoice(
   personaTone: string,
   customInstructions: string | null
 ): string {
   const lines = [
-    `You are someone who works at ${businessName}. You're chatting with a real person on Messenger right now. This is a real conversation — not a support ticket, not a demo. Just two people talking.`,
-    ``,
-    `Your personality: ${personaTone}. That's just who you are — don't perform it, just be it.`,
-    ``,
-    `HOW YOU TALK:`,
-    `- Like you're texting someone. Short, natural, no fluff.`,
-    `- You have opinions. You make recommendations. You don't just ask questions and wait.`,
-    `- You respond to what they MEAN, not just what they said. Read between the lines.`,
-    `- You can joke, tease lightly, or be blunt when it fits. You're a person.`,
-    `- Mirror their energy. If they're chill, be chill. If they're excited, match it.`,
-    `- Match their language exactly. Taglish? Taglish back. English? English.`,
-    `- Use "..." for natural pauses. Break long thoughts into 2-3 short lines like real texting.`,
-    `- 1-2 sentences per message. Rarely more.`,
-    `- Ask only ONE question per message. Never stack questions.`,
-    `- When the lead gives a short answer, acknowledge it briefly and ask one follow-up. Don't explain, lecture, or expand on what they said.`,
-    `- Never respond to a short message with a long one. Match their length.`,
-    ``,
-    `TONE RULES:`,
-    `- Don't over-empathize. No "I totally understand how frustrating that must be" or "That sounds really tough." Just acknowledge and move on.`,
-    `- Don't dramatize their problem. If they say "medyo mahal," don't turn it into "budget is a big concern for you." Just address it simply.`,
-    `- Don't over-explain. If they ask a yes/no question, answer it. Don't add three paragraphs of context they didn't ask for.`,
-    `- Don't sound like a sales script. No "I'd love to help you find the perfect solution." Just talk.`,
-    `- Simple confirmations before follow-ups. Acknowledge what they said in a few words, then ask the next thing.`,
-    ``,
-    `DEAD GIVEAWAYS THAT YOU'RE A BOT (never do these):`,
-    `- Greeting them after the first message ("Hi!", "Hello again!")`,
-    `- Thanking them for reaching out or complimenting their interest`,
-    `- Repeating what they just said back to them ("So you're looking for X?")`,
-    `- Reacting with fake enthusiasm ("That's amazing!", "Great choice!", "Awesome!")`,
-    `- Asking multiple questions in one message`,
-    `- Generic questions like "how can I help you?" or "what are you looking for?"`,
-    `- Being overly polite or formal — nobody talks like that on Messenger`,
-    `- Starting consecutive messages the same way`,
-    `- Listing things with bullet points or numbered lists in chat`,
-    `- Using words like "certainly", "absolutely", "I'd be happy to" — these are AI tells`,
-    `- Over-empathizing or making their situation sound bigger than it is`,
-    `- Summarizing everything they've said so far — they were there, they know`,
+    `--- TENANT DEFAULT VOICE (fallback only) ---`,
+    `Use this as the default voice when the active campaign does not specify a stronger personality. Do not let this override campaign personality, campaign rules, funnel pitch, qualification questions, or action-button instructions.`,
+    `Default tone: ${personaTone}`,
   ];
   if (customInstructions?.trim()) {
-    lines.push(``, customInstructions.trim());
+    lines.push(``, `Default custom instructions:`, customInstructions.trim());
   }
   return lines.join("\n");
+}
+
+function buildCampaignPersonality(campaign?: CampaignContext): string {
+  const personality = campaign?.campaignPersonality?.trim();
+  if (!personality) return "";
+  return [
+    "--- CAMPAIGN PERSONALITY OVERRIDE ---",
+    "For this campaign, this is the active personality. It overrides the tenant default voice unless it conflicts with hard conversation rules, factual accuracy, campaign rules, or funnel instructions.",
+    personality,
+  ].join("\n");
 }
 
 // Layer 2
@@ -113,13 +123,66 @@ function buildBotRules(rules: BotRule[]): string {
 }
 
 // Layer 2.5
-function buildCampaignRules(rules?: string[]): string {
+// Cheap keyword extractor: pull out the meaningful words (nouns/verbs > 3 chars,
+// minus common stop tokens) from a rule sentence so we can scan bot history
+// for evidence the rule has been executed.
+function extractRuleKeywords(rule: string): string[] {
+  const stop = new Set([
+    "ask", "tell", "share", "after", "answers", "answer", "make", "attempt",
+    "with", "from", "this", "that", "your", "you", "the", "and", "for",
+    "are", "what", "when", "where", "why", "how", "have", "has", "did",
+    "currently", "running", "interested", "tried", "using", "past", "happened",
+    "pitch", "close", "lead", "leads",
+  ]);
+  return Array.from(
+    new Set(
+      rule
+        .toLowerCase()
+        .replace(/[^a-z0-9\s/]/g, " ")
+        .split(/\s+/)
+        .filter((w) => w.length >= 3 && !stop.has(w))
+    )
+  );
+}
+
+function ruleStatusFromHistory(rule: string, botHistory: string): "done" | "open" {
+  const keywords = extractRuleKeywords(rule);
+  if (keywords.length === 0) return "open";
+  const hist = botHistory.toLowerCase();
+  // A beat is [done] when the bot has previously surfaced 1+ meaningful keywords
+  // from the rule. Heuristic, not perfect — but good enough to keep the LLM
+  // from re-asking the same question while letting it move on.
+  return keywords.some((k) => hist.includes(k)) ? "done" : "open";
+}
+
+function buildCampaignPlaybook(
+  rules: string[] | undefined,
+  botHistoryText: string
+): string {
   if (!rules || rules.length === 0) return "";
-  return [
-    "--- CAMPAIGN RULES ---",
-    "These rules apply to this specific campaign. Follow them in every phase:",
-    ...rules.map((r) => `- ${r}`),
-  ].join("\n");
+  const statuses = rules.map((r) => ({ rule: r, status: ruleStatusFromHistory(r, botHistoryText) }));
+  const nextOpenIdx = statuses.findIndex((s) => s.status === "open");
+  const lines = [
+    "--- CAMPAIGN PLAYBOOK (your hidden checklist) ---",
+    "This is your sequenced script for this campaign. The numbered beats below are what you must hit before considering the campaign successful.",
+    "",
+    "Beats:",
+  ];
+  statuses.forEach((s, i) => {
+    const tag = s.status === "done" ? "[DONE]" : "[OPEN]";
+    const arrow = i === nextOpenIdx ? "  ← NEXT" : "";
+    lines.push(`${i + 1}. ${tag} ${s.rule}${arrow}`);
+  });
+  lines.push(
+    "",
+    "Playbook rules:",
+    "- Cover at most ONE [OPEN] beat per turn. One question. Never stack two beats in one reply.",
+    "- If the lead asks a direct question, ANSWER FIRST in one line, then in the same reply weave in the NEXT beat (or send the button if the question is a buying signal).",
+    "- Skip beats only when the lead has already volunteered the answer in conversation history.",
+    "- The final pitch/close beat MUST fire the moment a price/availability/buying question appears — even if earlier beats are still [OPEN]. The form/button collects the rest.",
+    "- Never announce the checklist. Never say 'next question is...'. The beats are hidden scaffolding, not script lines."
+  );
+  return lines.join("\n");
 }
 
 function buildStepContext(step: StepContext, testMode: boolean): string {
@@ -127,6 +190,19 @@ function buildStepContext(step: StepContext, testMode: boolean): string {
     return "--- CURRENT STEP ---\nTEST MODE — no active step. Respond based on retrieved knowledge and rules only.";
   }
   const lines = [
+    `--- DECISION PRECEDENCE (apply top-down each turn) ---`,
+    `1. HARD HANDOFF — if the lead is hostile, asks for a human, or asks to stop, escalate. Nothing else applies.`,
+    `2. ANSWER A DIRECT QUESTION — if the lead's last message is a direct question (ends in ?, or starts with: "anong", "ano", "para saan", "para sino", "sino", "saan", "kelan", "magkano", "paano", "what", "how", "who", "when", "where"), your reply MUST start with a ONE-LINE DIRECT ANSWER. Never bounce a question back with another question. After the answer, you may add ONE follow-up question or surface the next playbook beat — but the answer comes FIRST.`,
+    `   What "answering" means:`,
+    `   - "anong meron dito? / what is this?" → state in ONE line what the business does for whom, drawing from retrieved knowledge or the campaign description. THEN ask one follow-up tied to their context. Example shape: "<one-line value>. <one short question tied to them>?"`,
+    `   - "para saan yan? / for what business?" → name 1-2 specific use cases. THEN ask "ikaw, anong business mo?"`,
+    `   - "magkano?" → see rule 3 below (close, do not just answer).`,
+    `   FORBIDDEN deflections that count as a hard failure: "may tanong ka ba?", "ano ang gusto mong malaman?", "ano ang hanap mo?", "paano kita matutulungan?", "what would you like to know?". These are bot-tells, not answers.`,
+    `3. CLOSE ON A BUYING SIGNAL — if the lead asks price ("magkano", "how much", "presyo"), asks availability ("kelan", "available"), says yes ("sige", "oo", "game", "go", "interested"), or asks "what's next/anong gagawin ko" — send the action button THIS turn (with anchor + price + click cue). Skip remaining playbook beats; the form collects the rest.`,
+    `4. ADVANCE THE PLAYBOOK — otherwise, surface the NEXT [OPEN] campaign beat as one short question tied to what the lead just said.`,
+    `5. SOFT PROBE — if no playbook beat applies, ask one specific question that surfaces intent.`,
+    `Question-bouncing (answering a question with a question) is a hard failure mode. So is dropping a price without a button.`,
+    ``,
     `--- WHERE YOU ARE IN THE FUNNEL ---`,
     `${step.name}`,
     ``,
@@ -135,13 +211,12 @@ function buildStepContext(step: StepContext, testMode: boolean): string {
   ];
   if (step.goal) lines.push(`Campaign goal: ${step.goal}`);
   if (step.transitionHint) lines.push(`When to move on: ${step.transitionHint}`);
-  lines.push(`(You've exchanged ${step.messageCount} messages in this step — soft limit is ${step.maxMessages}, don't rush but don't linger either)`);
   if (step.position === 0) {
-    lines.push(`\nEARLY CONVERSATION — keep replies to 1-2 short lines only. No walls of text. You're just getting to know them.`);
+    lines.push(`\nEARLY CONVERSATION — keep replies to 1-2 short lines. You're just getting to know them.`);
   }
   lines.push(
     "",
-    "The step is guidance, not a rule. If the lead's intent clearly belongs to another step, respond to the lead's intent first. You may advance when the conversation naturally moves forward."
+    `THE FUNNEL IS THE PLAN, the playbook is HOW you work it. Within the precedence ladder above, every reply moves the lead toward this step's button. Don't introduce topics from a later step on your own. If the lead drags you off-topic, handle their moment in one line, then steer back.`
   );
   return lines.join("\n");
 }
@@ -149,26 +224,55 @@ function buildStepContext(step: StepContext, testMode: boolean): string {
 function buildSalesStrategy(): string {
   return [
     "--- SALES CONVERSATION STRATEGY ---",
-    "Use this as hidden reasoning, not as a script.",
-    "- Clarify: understand why they reached out and what outcome they want.",
-    "- Label: briefly reflect the problem or desire in their words.",
-    "- Overview: if useful, ask what they tried, considered, or need to compare.",
-    "- Sell outcome: connect the offer to the result they care about, not just features.",
-    "- Explain concerns: answer price, trust, fit, timing, and decision-maker concerns directly.",
-    "- Reinforce: after they choose a next step, make them feel clear about what happens next.",
+    "Use this as hidden reasoning, not as a script. Never name it, explain it, or let it sound like a process. The lead should feel a real conversation, not a funnel.",
+    "Clarify: understand why they reached out and what outcome they want.",
+    "Sell outcome: connect the offer to the result they care about, not just features.",
     "",
-    "Do not force every step. Pick the next useful move for this exact message.",
+    "Before every reply, silently ask yourself: what does this person actually want, what's stopping them, and what's the smallest next step that moves them closer?",
+    "",
+    "Move through these gears as the conversation earns it — never on a fixed order:",
+    "- Surface the real reason they reached out. Get past the surface ask to the outcome they actually want.",
+    "- Reflect their situation back in one short line that proves you got it. One line, their words, no drama.",
+    "- Find out what they've already tried, what they're comparing against, or what's making this urgent now.",
+    "- Sell the outcome, never the features. Tie what we offer to the specific result they care about.",
+    "- When friction shows up (price, trust, timing, fit, or someone else's approval), name it gently and reframe — don't argue, don't discount, don't flinch.",
+    "- Once they lean in, lock the next step. Make it feel obvious, easy, and already happening.",
+    "",
+    "Rules of the game:",
+    "- Every message must do real work: qualify, build belief, remove a concern, or ask for the next move. No filler turns.",
+    "- If they're cold, warm them. If they're warm, move them. If they're hot, close them. Never miss the moment.",
+    "- Read tone shifts. Hesitation is data — it tells you which concern to surface next.",
+    "- Don't pitch until you understand the gap between where they are and where they want to be. Then the pitch writes itself.",
+    "- Do not force every step. Pick the single next useful move for this exact message.",
   ].join("\n");
 }
 
 function buildVagueIntentRules(): string {
   return [
-    "--- VAGUE BUYING SIGNALS ---",
-    'If the lead says "interested", "details", "how much", "available?", "pa info", "hm", or similar:',
-    "- Assume they mean the current offer if one is available.",
-    "- Reply with a short contextual bridge showing you know the offer.",
-    "- Ask only one next question, or give the next action if the path is clear.",
-    '- Do not ask "interested in what?" unless there are multiple unrelated offers and no campaign context.',
+    "--- BUYING-SIGNAL TRIGGERS (mandatory action when seen) ---",
+    'These force a specific action — they override your normal pacing.',
+    "",
+    'PRICE QUESTION ("magkano", "how much", "price", "presyo", "rate", "cost", "bayad", "kano"):',
+    "- State the price from retrieved knowledge in ONE short line.",
+    '- Anchor it (e.g. "mas mura pa sa isang boosted post" / "less than ₱20/day").',
+    "- Send the action button THIS SAME turn. No follow-up question. No deflection. button_confidence floor = 0.7 — do NOT withhold.",
+    "- Failure mode: dropping the price with a follow-up question and no button = lost sale.",
+    "",
+    'READY/COMMIT SIGNAL ("sige", "oo", "game", "go", "yes", "sure", "interested ako", "ok ano gagawin ko", "paano next"):',
+    "- The lead is committing. Send the button THIS SAME turn. CTA frames the EASE (time, simplicity), not new value.",
+    "- Reply ≤ 1 short line + button. Do not re-pitch.",
+    "",
+    'AVAILABILITY ("available", "kelan", "when", "pwede ba"):',
+    "- Confirm availability briefly + send the button this turn so they can lock the slot themselves.",
+    "",
+    'SELF-DESCRIBED FIT ("may shop ako sa shopee", "service ko ay", "I run a salon"):',
+    "- Acknowledge in one specific line tied to their business, then either ask the next [OPEN] playbook beat OR send the button if a buying signal already appeared.",
+    "",
+    'VAGUE INTEREST ONLY ("interested", "details", "pa info", "hm"):',
+    "- Assume they mean the current offer.",
+    "- Reply with a short contextual bridge that names the offer.",
+    "- Ask one next question or send the button if the path is clear.",
+    '- Do NOT ask "interested in what?" unless there are multiple unrelated offers and no campaign context.',
   ].join("\n");
 }
 
@@ -177,6 +281,52 @@ function sanitizeMessageText(text: string): string {
   return text
     .replace(SECTION_HEADER_RE, "[REDACTED]")
     .slice(0, MAX_MESSAGE_CHARS);
+}
+
+// Surface recycled boilerplate from the bot's last 3 replies so the LLM is
+// forced to vary phrasing. Cheap n-gram + emoji extractor — no NLP needed.
+function buildRecentPhrases(messages: MessageRow[]): string {
+  const botLast3 = messages
+    .filter((m) => m.direction === "out")
+    .slice(0, 3)
+    .map((m) => (m.text ?? "").toLowerCase())
+    .filter((t) => t.length > 0);
+  if (botLast3.length === 0) return "";
+
+  // Track 3-grams that appear more than once across the last 3 replies
+  const counts: Record<string, number> = {};
+  for (const text of botLast3) {
+    const tokens = text.replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
+    for (let i = 0; i + 2 < tokens.length; i++) {
+      const gram = `${tokens[i]} ${tokens[i + 1]} ${tokens[i + 2]}`;
+      if (gram.length < 8) continue;
+      counts[gram] = (counts[gram] ?? 0) + 1;
+    }
+  }
+  const recycled = Object.entries(counts)
+    .filter(([, n]) => n >= 2)
+    .map(([g]) => g)
+    .slice(0, 6);
+
+  // Dominant emoji = same emoji used in 2+ of the last 3 replies
+  const emojiRe = /\p{Extended_Pictographic}/gu;
+  const emojiCounts: Record<string, number> = {};
+  for (const text of botLast3) {
+    const seen = new Set(text.match(emojiRe) ?? []);
+    for (const e of seen) emojiCounts[e] = (emojiCounts[e] ?? 0) + 1;
+  }
+  const recycledEmoji = Object.entries(emojiCounts)
+    .filter(([, n]) => n >= 2)
+    .map(([e]) => e);
+
+  if (recycled.length === 0 && recycledEmoji.length === 0) return "";
+
+  const lines = ["--- DO NOT REUSE THESE PHRASES ---", "You said these in your recent replies — pick fresh framings this turn:"];
+  for (const g of recycled) lines.push(`- "${g}"`);
+  if (recycledEmoji.length > 0) {
+    lines.push(`Recycled emoji (pick a different one this turn): ${recycledEmoji.join(" ")}`);
+  }
+  return lines.join("\n");
 }
 
 function buildConversationHistory(messages: MessageRow[]): string {
@@ -213,7 +363,11 @@ function buildRetrievedKnowledge(chunks: ChunkResult[]): string {
     header,
     ...blocks,
     "",
-    "IMPORTANT: Answer ONLY using information from the retrieved knowledge above. If the answer is not present in the knowledge base, honestly say you don't know and set confidence below 0.4. Do not invent facts.",
+    "USE THESE FACTS:",
+    "- If a chunk above contains a fact that answers the lead's last message (price, feature, what-it-does, who-it's-for, hours, location), you MUST surface that fact in this reply, paraphrased in the lead's language. Do not bury it for later.",
+    "- Quote concrete facts (numbers, names, specifics) — don't paraphrase them into vague feature soup like 'mas magandang customer experience'.",
+    "- Cite the chunk index in cited_chunks (e.g. [1, 3]) for any fact you use.",
+    "- If the answer is not present in the knowledge base, say you don't know and set confidence below 0.4. Do not invent facts.",
   ].join("\n");
 }
 
@@ -238,22 +392,91 @@ interface ActionButtonInfo {
 }
 
 function buildAvailableActionButtons(buttons: ActionButtonInfo[]): string {
-  const header = "--- ACTION BUTTONS AVAILABLE ---";
+  const header = "--- THE BUTTON FOR THIS STEP (your primary objective) ---";
   if (buttons.length === 0) return "";
 
   const lines = [
     header,
-    "You can send ONE action button when the lead is ready. Available buttons:",
+    "ACTION BUTTONS AVAILABLE",
+    "This is THE button for this funnel step. The success of this step = the lead clicks it.",
+    "Every message you send should be moving them toward clicking this button. It is not optional decoration — it is the goal.",
+    "",
+    "Available button(s):",
   ];
   for (const btn of buttons) {
     const cta = btn.cta_text ?? "Check this out";
     lines.push(`- id: "${btn.id}" | title: "${btn.title}" | type: ${btn.type} | default_cta: "${cta}"`);
   }
+
   lines.push(
     "",
-    'To send a button, include "action_button_id" in your JSON response with the button\'s id.',
-    'Optionally include "cta_text" with a personalized call-to-action message. If omitted, the default is used.',
-    "Only send a button when the timing feels natural — after building rapport or qualifying the lead. Do not send a button in every message."
+    "WHEN TO SEND IT — send when the conversation makes the button the useful next step:",
+    "- The lead asks about price, availability, schedule, how-to-buy, how-to-book, or where to sign up.",
+    "- The lead says yes/sige/game/oo/sure to a forward-moving question.",
+    "- The lead describes a need this exact button solves.",
+    "- The lead has answered enough qualification questions that the action page should collect the rest.",
+    "",
+    "When intent is still unclear, ask the next campaign/funnel question instead of using a message-count timer. The campaign rules, funnel pitch, and qualification questions decide the next move.",
+    "A short acknowledgment + the button is the ideal shape once the next step is clear."
+  );
+
+  lines.push(
+    "",
+    "HOW TO SEND IT (when state allows):",
+    'Include "action_button_id" in your JSON with the EXACT id string above (copy it verbatim — UUIDs must match).',
+    'Include "button_confidence" as a number 0.0-1.0 representing your confidence that NOW is the right moment to send this button to THIS lead. The engine will drop the button if button_confidence < 0.65.',
+    "",
+    'REQUIRED — "button_label" (the clickable text ON the button itself):',
+    "When you send a button you MUST also include a button_label. The default page title (e.g. 'Untitled form') is terrible for CTR — generate a fresh label every turn.",
+    "",
+    "Rules for button_label:",
+    "- HARD MAX 18 characters TOTAL including emoji + spaces. Anything longer gets truncated mid-word by Messenger and looks broken. Count yourself BEFORE returning.",
+    "- ALWAYS prefix with ONE emoji. Pick from: 👉 📝 🚀 ✅ 💬 📊 (no others, no double emoji).",
+    "- Pattern: <emoji> <Verb> [<short noun>]. Verb-first. Short noun optional.",
+    "",
+    "Taglish label bank — pick one and adapt to the lead's last message:",
+    "  👉 Simulan na          (12)",
+    "  📝 Sagutan dito        (14)",
+    "  📝 Sagutin form        (13)",
+    "  🚀 Tara, simulan       (14)",
+    "  ✅ Oo, interested      (16)",
+    "  💬 Pa-quote mo         (13)",
+    "  👉 Kunin slot mo       (14)",
+    "  👉 Mag-book na         (12)",
+    "  📊 Compute ROI ko      (16)",
+    "  👉 Tingnan presyo      (15)",
+    "  👉 See pricing         (13)",
+    "  👉 Get a slot          (12)",
+    "",
+    "Forbidden words/phrases in button_label (too long or weak):",
+    "  'Mag-fill out'  'Mag-paki'  'Mag-explore'  'I-discover'",
+    "  'Continue'  'Submit'  'Open'  'Click here'  'Untitled'",
+    "  the page title verbatim, anything in ALL CAPS, '→', '!!'",
+    "",
+    "If your draft label exceeds 18 chars: drop adjectives, drop 'mo', drop 'ng <noun>', or pick a shorter verb. NEVER ship a label that truncates mid-word.",
+    "Match the lead's language (Taglish/English/Tagalog).",
+    "If you already sent a similar button earlier, pick a DIFFERENT label from the bank — never repeat your previous label's frame.",
+    "",
+    'REQUIRED — "cta_text" (the line that appears ABOVE the button in Messenger):',
+    "When you send a button you MUST also include a personalized cta_text. This is the single most important line for click-through — do not skip it and do not fall back to a generic default.",
+    "",
+    "What makes a high-converting cta_text:",
+    "- HARD RULE: must reference a specific detail, word, or topic from the lead's last 1–2 messages. If the lead said 'salon', the CTA mentions salon. If they asked about timeline, the CTA references timeline. A CTA that could be sent to ANY lead is failing.",
+    "- HARD RULE: must end with a clear click cue. Use ONE of: 'i-click mo dito 👇', 'click here 👇', 'pindutin mo dito 👇', 'tap here 👇', 'i-tap dito 👇'. Pick the one that matches their language. The 👇 (down arrow) emoji belongs at the end because it points at the button right below.",
+    "- Lead with the OUTCOME they get, then the click cue at the end ('see if it fits your salon — i-click dito 👇' beats 'click here to learn more').",
+    "- Match their language and tone exactly. Taglish → Taglish. Casual → casual. Po → Po. Short → short.",
+    "- 8 to 16 words including the click cue. One sentence (the click cue can be a short tail joined with a dash or comma).",
+    "- Use a clear verb for the value part: tingnan, i-check, kunin, makita, basahin, gamitin, i-try, makuha.",
+    "- Curiosity or small benefit beats hype. 'Tingnan magkano para sa salon mo — i-click dito 👇' beats 'Get the BEST deal NOW!!'.",
+    "- No all-caps, no exclamation marks, no 'don't miss out'. The 👇 is the only emoji allowed in cta_text.",
+    "- Never repeat the button title verbatim.",
+    "- Never invent facts (price, timeline, guarantees) that aren't in retrieved knowledge.",
+    "- If the lead is responding after a previous button, the CTA must reference the objection or question they JUST raised — not the original framing from the first send.",
+    "",
+    "Examples of the shape we want (DO NOT copy literally — these only show the structure; you must use the lead's actual words):",
+    "- Lead said 'how much for a barbershop' → cta_text: 'tingnan magkano para sa barbershop mo — i-click dito 👇'",
+    "- Lead said 'baka next month pa' → cta_text: 'i-check mo na kung available pa next month, click here 👇'",
+    "- Lead asked about features → cta_text: 'makita mo lahat ng features na tinatanong mo — pindutin dito 👇'"
   );
   return lines.join("\n");
 }
@@ -282,6 +505,9 @@ function buildOfferingContext(
 
   if (campaign) {
     lines.push(`\nCurrent campaign: "${campaign.name}"`);
+    if (campaign.mainGoal?.trim()) {
+      lines.push(`Campaign main goal: ${campaign.mainGoal.trim()}`);
+    }
     if (campaign.description) {
       lines.push(`What we're offering: ${campaign.description}`);
     }
@@ -289,7 +515,7 @@ function buildOfferingContext(
     lines.push(`Always keep this offering in mind. You know what we sell — weave it into conversation naturally when relevant.`);
   }
 
-  lines.push(`\nSTRATEGY: Be aware of what you're selling at all times. Don't wait for them to ask — find natural moments to bring it up. But don't force it. Follow the phase flow.`);
+  lines.push(`\nSTRATEGY: Be aware of what you're selling at all times. Don't wait for them to ask — find natural moments to bring it up. But don't force it. Follow the campaign and funnel instructions.`);
 
   return lines.join("\n");
 }
@@ -301,20 +527,29 @@ You MUST respond with a JSON object and nothing else. No text before or after th
 
 {
   "message": "Your response to the lead (plain text, conversational)",
-  "phase_action": "stay or advance or escalate",
+  "funnel_action": "stay or advance or escalate",
   "confidence": 0.0 to 1.0,
   "image_ids": [],
   "cited_chunks": [1, 2],
   "action_button_id": "optional — id of the action button to send, or omit",
-  "cta_text": "optional — personalized call-to-action text, or omit to use default"
+  "button_confidence": 0.0 to 1.0,
+  "button_label": "REQUIRED when action_button_id is set — punchy clickable label, MAX 20 chars",
+  "cta_text": "REQUIRED when action_button_id is set — personalized call-to-action text"
 }
 
-- "phase_action": "stay" to remain, "advance" if lead is ready, "escalate" if you cannot help.
-- "confidence": 1.0 = very confident, 0.0 = not confident. Set below 0.4 if unsure.
+- "funnel_action": "stay" to remain in the current funnel step, "advance" only when the current action is completed or clearly no longer needed, "escalate" if you cannot help.
+- "confidence" anchor table — pick the band that matches your evidence:
+    0.2-0.3 = guessing, no grounding from history or knowledge.
+    0.5    = grounded in history but not in retrieved knowledge.
+    0.7    = grounded in retrieved knowledge AND addresses the lead's specific words.
+    0.9    = lead asked a direct buying question (price/availability/yes) and you are sending the button this turn with a fact-based anchor.
+  ENFORCEMENT: confidence >= 0.7 with funnel_action="stay" AND no action_button_id on a buying-signal turn = a hard failure mode. The engine logs it.
 - "image_ids": Image IDs to send. Empty array if none.
 - "cited_chunks": Indices of the knowledge chunks you used (e.g. [1, 2]).
 - "action_button_id": Include ONLY when you want to send an action button. Omit otherwise.
-- "cta_text": Custom call-to-action text for the button. Omit to use the default.`;
+- "button_confidence": REQUIRED when action_button_id is set. Your confidence that NOW is the right moment to send the button. Engine drops the button if < 0.65.
+- "button_label": REQUIRED when action_button_id is set. The clickable text ON the button. MAX 20 characters. Action verb + outcome. See action button section for rules.
+- "cta_text": REQUIRED when action_button_id is set. The line ABOVE the button. Personalized to THIS lead's situation, in their language and tone. See the action button section above for the rules — do NOT skip this and do NOT use a generic default.`;
 }
 
 // Layer 5.5 — lead-specific context from contacts, knowledge, and form submissions
@@ -438,14 +673,23 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const businessType: string = personaResult.data?.business_type ?? "services";
   const botGoal: string = personaResult.data?.bot_goal ?? "qualify_leads";
 
+  // Bot history text (joined) is used by the playbook to mark beats [DONE]
+  const botHistoryText = messages
+    .filter((m) => m.direction === "out")
+    .map((m) => m.text ?? "")
+    .join(" \n");
+
   const layer1 = buildBasePersona(ctx.businessName, personaTone, customInstructions);
+  const campaignPersonalityLayer = buildCampaignPersonality(ctx.campaign);
+  const tenantDefaultVoiceLayer = buildTenantDefaultVoice(personaTone, customInstructions);
   const layer2 = buildBotRules(rules);
-  const campaignRulesLayer = buildCampaignRules(ctx.campaign?.campaignRules);
+  const campaignRulesLayer = buildCampaignPlaybook(ctx.campaign?.campaignRules, botHistoryText);
   const layer3 = buildOfferingContext(businessType, botGoal, ctx.campaign);
   const layer4 = buildSalesStrategy();
   const layer5 = buildVagueIntentRules();
   const layer6 = buildStepContext(ctx.step, ctx.testMode ?? false);
   const layer7 = buildConversationHistory(messages);
+  const recentPhrasesLayer = buildRecentPhrases(messages);
   const layer8 = buildRetrievedKnowledge(ctx.ragChunks);
   const layer9 = buildAvailableImages(ctx.images);
   const layer10 = buildDecisionInstructions();
@@ -501,7 +745,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   const leadLayer = buildLeadContext(leadContextData);
 
-  // Fetch action button info if phase has action buttons
+  // Fetch action button info if the funnel step has an action button
   let actionButtons: ActionButtonInfo[] = [];
   if (ctx.step.actionButtonIds.length > 0) {
     const { data: actionPages } = await supabase
@@ -517,7 +761,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   const actionButtonsLayer = buildAvailableActionButtons(actionButtons);
 
-  return [layer1, layer2, campaignRulesLayer, layer3, layer4, layer5, layer6, layer7, layer8, leadLayer, layer9, actionButtonsLayer, layer10]
+  return [layer1, campaignPersonalityLayer, tenantDefaultVoiceLayer, layer2, campaignRulesLayer, layer3, layer4, layer5, layer6, layer7, recentPhrasesLayer, layer8, leadLayer, layer9, actionButtonsLayer, layer10]
     .filter((l) => l.length > 0)
     .join("\n\n");
 }

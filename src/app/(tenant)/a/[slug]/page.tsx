@@ -56,8 +56,12 @@ export default async function ActionPageRoute({ params, searchParams }: Props) {
 
   const tenant = tenantRes.data;
 
-  const sigValid = tenant?.fb_app_secret
-    ? verifyActionPageSignature(psid, sig, tenant.fb_app_secret)
+  // Mirror the webhook signer + submission verifier: tenant secret takes
+  // precedence, falling back to the platform-wide FB_APP_SECRET so URLs
+  // minted under either secret still verify.
+  const verifySecret = tenant?.fb_app_secret ?? process.env.FB_APP_SECRET ?? null;
+  const sigValid = verifySecret
+    ? verifyActionPageSignature(psid, sig, verifySecret)
     : false;
 
   if (!sigValid) {

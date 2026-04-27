@@ -4,15 +4,15 @@ import { useState, useCallback } from "react";
 import { GitBranch, Settings, BarChart3, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { clsx } from "clsx";
-import CampaignFlowPanel from "@/components/dashboard/campaigns/CampaignFlowPanel";
+import CampaignFunnelsPanel from "@/components/dashboard/campaigns/CampaignFunnelsPanel";
 import CampaignForm from "@/components/dashboard/campaigns/CampaignForm";
 import PhaseMetricsFunnel from "@/components/dashboard/campaigns/PhaseMetricsFunnel";
 import type { Campaign } from "@/hooks/useCampaigns";
 
-type Tab = "flow" | "settings" | "metrics";
+type Tab = "funnel" | "settings" | "metrics";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-  { id: "flow", label: "Flow", icon: GitBranch },
+  { id: "funnel", label: "Funnel", icon: GitBranch },
   { id: "settings", label: "Settings", icon: Settings },
   { id: "metrics", label: "Metrics", icon: BarChart3 },
 ];
@@ -22,7 +22,7 @@ export default function CampaignEditorClient({
 }: {
   campaign: Campaign;
 }) {
-  const [tab, setTab] = useState<Tab>("flow");
+  const [tab, setTab] = useState<Tab>("funnel");
   const [campaign, setCampaign] = useState(initialCampaign);
 
   const handleSave = useCallback(
@@ -66,7 +66,9 @@ export default function CampaignEditorClient({
         ))}
       </div>
 
-      {tab === "flow" && <CampaignFlowPanel campaignId={campaign.id} />}
+      {tab === "funnel" && (
+        <CampaignFunnelsPanel campaign={campaign} onCampaignChange={setCampaign} />
+      )}
       {tab === "settings" && <CampaignForm campaign={campaign} onSave={handleSave} />}
       {tab === "metrics" && <PhaseMetricsFunnel campaignId={campaign.id} />}
     </div>

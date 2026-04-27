@@ -131,6 +131,7 @@ export type Database = {
         Row: {
           config: Json
           created_at: string
+          cta_text: string | null
           id: string
           published: boolean
           slug: string
@@ -142,6 +143,7 @@ export type Database = {
         Insert: {
           config?: Json
           created_at?: string
+          cta_text?: string | null
           id?: string
           published?: boolean
           slug: string
@@ -153,6 +155,7 @@ export type Database = {
         Update: {
           config?: Json
           created_at?: string
+          cta_text?: string | null
           id?: string
           published?: boolean
           slug?: string
@@ -388,7 +391,9 @@ export type Database = {
           created_at: string
           id: string
           page_description: string | null
+          pitch: string | null
           position: number
+          qualification_questions: string[]
           tenant_id: string
           updated_at: string
         }
@@ -399,7 +404,9 @@ export type Database = {
           created_at?: string
           id?: string
           page_description?: string | null
+          pitch?: string | null
           position: number
+          qualification_questions?: string[]
           tenant_id: string
           updated_at?: string
         }
@@ -410,7 +417,9 @@ export type Database = {
           created_at?: string
           id?: string
           page_description?: string | null
+          pitch?: string | null
           position?: number
+          qualification_questions?: string[]
           tenant_id?: string
           updated_at?: string
         }
@@ -504,6 +513,7 @@ export type Database = {
       campaigns: {
         Row: {
           campaign_plan: Json | null
+          campaign_personality: string | null
           campaign_rules: string[] | null
           created_at: string
           description: string | null
@@ -513,6 +523,7 @@ export type Database = {
           goal_config: Json
           id: string
           is_primary: boolean
+          main_goal: string | null
           name: string
           status: string
           tenant_id: string
@@ -520,6 +531,7 @@ export type Database = {
         }
         Insert: {
           campaign_plan?: Json | null
+          campaign_personality?: string | null
           campaign_rules?: string[] | null
           created_at?: string
           description?: string | null
@@ -529,6 +541,7 @@ export type Database = {
           goal_config?: Json
           id?: string
           is_primary?: boolean
+          main_goal?: string | null
           name: string
           status?: string
           tenant_id: string
@@ -536,6 +549,7 @@ export type Database = {
         }
         Update: {
           campaign_plan?: Json | null
+          campaign_personality?: string | null
           campaign_rules?: string[] | null
           created_at?: string
           description?: string | null
@@ -545,6 +559,7 @@ export type Database = {
           goal_config?: Json
           id?: string
           is_primary?: boolean
+          main_goal?: string | null
           name?: string
           status?: string
           tenant_id?: string
@@ -616,6 +631,7 @@ export type Database = {
           current_funnel_position: number
           escalation_message_id: string | null
           escalation_reason: string | null
+          funnel_button_sent_at_count: number | null
           funnel_message_count: number
           id: string
           last_message_at: string
@@ -630,6 +646,7 @@ export type Database = {
           current_funnel_position?: number
           escalation_message_id?: string | null
           escalation_reason?: string | null
+          funnel_button_sent_at_count?: number | null
           funnel_message_count?: number
           id?: string
           last_message_at?: string
@@ -644,6 +661,7 @@ export type Database = {
           current_funnel_position?: number
           escalation_message_id?: string | null
           escalation_reason?: string | null
+          funnel_button_sent_at_count?: number | null
           funnel_message_count?: number
           id?: string
           last_message_at?: string
@@ -1276,6 +1294,8 @@ export type Database = {
           stage_id: string | null
           tags: string[]
           tenant_id: string
+          unreachable_at: string | null
+          unreachable_reason: string | null
         }
         Insert: {
           campaign_id?: string | null
@@ -1291,6 +1311,8 @@ export type Database = {
           stage_id?: string | null
           tags?: string[]
           tenant_id: string
+          unreachable_at?: string | null
+          unreachable_reason?: string | null
         }
         Update: {
           campaign_id?: string | null
@@ -1306,6 +1328,8 @@ export type Database = {
           stage_id?: string | null
           tags?: string[]
           tenant_id?: string
+          unreachable_at?: string | null
+          unreachable_reason?: string | null
         }
         Relationships: [
           {
@@ -1861,6 +1885,10 @@ export type Database = {
           page_id: string
         }[]
       }
+      increment_funnel_message_count: {
+        Args: { p_conversation_id: string }
+        Returns: number
+      }
       match_knowledge_chunks: {
         Args: {
           p_kb_type: string
@@ -1947,6 +1975,7 @@ export type Database = {
         | "appointment_booked"
         | "purchase"
         | "stage_changed"
+        | "send_failed"
       lead_knowledge_source: "ai_extracted" | "manual" | "form_submit"
       lead_note_type: "agent_note" | "ai_summary"
       order_status: "pending" | "paid" | "fulfilled" | "cancelled"
@@ -2127,6 +2156,7 @@ export const Constants = {
         "appointment_booked",
         "purchase",
         "stage_changed",
+        "send_failed",
       ],
       lead_knowledge_source: ["ai_extracted", "manual", "form_submit"],
       lead_note_type: ["agent_note", "ai_summary"],

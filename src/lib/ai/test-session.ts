@@ -12,6 +12,7 @@ export interface TestSession {
   campaignId: string | null;
   currentFunnelIndex: number;
   funnelMessageCount: number;
+  funnelButtonSentAtCount: number | null;
   history: { role: "user" | "bot"; text: string }[];
   funnels: FunnelWithPage[];
   createdAt: number;
@@ -45,6 +46,7 @@ export function createSession(
     campaignId,
     currentFunnelIndex: 0,
     funnelMessageCount: 0,
+    funnelButtonSentAtCount: null,
     history: [],
     funnels,
     createdAt: Date.now(),
@@ -86,6 +88,7 @@ export function advanceSessionFunnel(
   }
   session.currentFunnelIndex += 1;
   session.funnelMessageCount = 0;
+  session.funnelButtonSentAtCount = null;
   return { funnel: session.funnels[session.currentFunnelIndex], advanced: true, completed: false };
 }
 
@@ -94,5 +97,10 @@ export function jumpToFunnel(session: TestSession, funnelId: string): FunnelWith
   if (idx === -1) return null;
   session.currentFunnelIndex = idx;
   session.funnelMessageCount = 0;
+  session.funnelButtonSentAtCount = null;
   return session.funnels[idx];
+}
+
+export function markSessionButtonSent(session: TestSession): void {
+  session.funnelButtonSentAtCount = session.funnelMessageCount;
 }

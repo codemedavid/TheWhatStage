@@ -6,8 +6,9 @@ vi.mock("@/lib/ai/llm-client", () => ({
 }));
 import { generateResponse } from "@/lib/ai/llm-client";
 import { proposeFunnelStructure } from "@/lib/ai/funnel-builder";
+import type { AvailablePage } from "@/lib/ai/funnel-builder";
 
-const pages = [
+const pages: AvailablePage[] = [
   { id: "p-sales", type: "sales", title: "Coaching Sales" },
   { id: "p-qual", type: "qualification", title: "Coaching Qualification" },
   { id: "p-call", type: "calendar", title: "Discovery Call" },
@@ -20,7 +21,20 @@ describe("proposeFunnelStructure", () => {
     vi.mocked(generateResponse).mockResolvedValue({
       content: JSON.stringify({
         action: "propose",
-        funnels: [{ action_page_id: "p-qual" }, { action_page_id: "p-call" }],
+        main_goal: "Qualify leads and book a call.",
+        campaign_personality: null,
+        funnels: [
+          {
+            action_page_id: "p-qual",
+            pitch: "Make qualification feel helpful.",
+            qualification_questions: ["What are you trying to improve?"],
+          },
+          {
+            action_page_id: "p-call",
+            pitch: "Book the call as the next practical step.",
+            qualification_questions: [],
+          },
+        ],
         top_level_rules: ["Be concise."],
       }),
     } as any);
@@ -33,6 +47,9 @@ describe("proposeFunnelStructure", () => {
     expect(result.action).toBe("propose");
     if (result.action === "propose") {
       expect(result.funnels.map((f) => f.actionPageId)).toEqual(["p-qual", "p-call"]);
+      expect(result.mainGoal).toBe("Qualify leads and book a call.");
+      expect(result.funnels[0].pitch).toContain("qualification");
+      expect(result.funnels[0].qualificationQuestions).toEqual(["What are you trying to improve?"]);
       expect(result.topLevelRules).toContain("Be concise.");
     }
   });
@@ -49,6 +66,8 @@ describe("proposeFunnelStructure", () => {
     vi.mocked(generateResponse).mockResolvedValue({
       content: JSON.stringify({
         action: "propose",
+        main_goal: "Sell the offer.",
+        campaign_personality: null,
         funnels: [{ action_page_id: "p-nope" }],
         top_level_rules: [],
       }),
@@ -62,6 +81,8 @@ describe("proposeFunnelStructure", () => {
     vi.mocked(generateResponse).mockResolvedValue({
       content: JSON.stringify({
         action: "propose",
+        main_goal: "Sell the offer.",
+        campaign_personality: null,
         funnels: [
           { action_page_id: "p-sales" },
           { action_page_id: "p-qual" },

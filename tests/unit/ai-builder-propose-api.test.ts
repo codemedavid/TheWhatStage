@@ -33,7 +33,9 @@ describe("POST /api/campaigns/ai-builder/propose", () => {
   it("returns the proposal", async () => {
     vi.mocked(proposeFunnelStructure).mockResolvedValue({
       action: "propose",
-      funnels: [{ actionPageId: "p-sales" }],
+      mainGoal: "Sell the course.",
+      campaignPersonality: null,
+      funnels: [{ actionPageId: "p-sales", pitch: "Pitch the course.", qualificationQuestions: [] }],
       topLevelRules: [],
     });
 

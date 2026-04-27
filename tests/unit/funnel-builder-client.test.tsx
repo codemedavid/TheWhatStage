@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { FunnelBuilderClient } from "@/components/dashboard/campaigns/FunnelBuilderClient";
+import type { AvailablePage } from "@/lib/ai/funnel-builder";
 
 const fetchMock = vi.fn();
 beforeEach(() => {
@@ -9,7 +10,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
 });
 
-const pages = [
+const pages: AvailablePage[] = [
   { id: "p-sales", type: "sales", title: "Sales Page" },
   { id: "p-qual", type: "qualification", title: "Qualification" },
 ];
@@ -21,7 +22,12 @@ describe("FunnelBuilderClient", () => {
         ok: true,
         json: async () => ({
           action: "propose",
-          funnels: [{ actionPageId: "p-qual" }, { actionPageId: "p-sales" }],
+          mainGoal: "Sell coaching to qualified leads.",
+          campaignPersonality: null,
+          funnels: [
+            { actionPageId: "p-qual", pitch: "Qualify them first.", qualificationQuestions: [] },
+            { actionPageId: "p-sales", pitch: "Send the sales page.", qualificationQuestions: [] },
+          ],
           topLevelRules: ["Be friendly"],
         }),
       })
@@ -29,7 +35,7 @@ describe("FunnelBuilderClient", () => {
 
     render(<FunnelBuilderClient availablePages={pages} />);
 
-    fireEvent.change(screen.getByPlaceholderText(/what are you trying to do/i), {
+    fireEvent.change(screen.getByPlaceholderText(/vacation package/i), {
       target: { value: "Sell coaching to qualified leads" },
     });
     fireEvent.click(screen.getByRole("button", { name: /propose funnel/i }));
@@ -58,7 +64,7 @@ describe("FunnelBuilderClient", () => {
     });
 
     render(<FunnelBuilderClient availablePages={pages} />);
-    fireEvent.change(screen.getByPlaceholderText(/what are you trying to do/i), {
+    fireEvent.change(screen.getByPlaceholderText(/vacation package/i), {
       target: { value: "uhh" },
     });
     fireEvent.click(screen.getByRole("button", { name: /propose funnel/i }));

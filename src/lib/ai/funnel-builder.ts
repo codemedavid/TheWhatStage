@@ -13,7 +13,15 @@ export type FunnelProposal =
   | { action: "question"; question: string }
   | {
       action: "propose";
-      funnels: Array<{ actionPageId: string }>;
+      name?: string;
+      description?: string;
+      mainGoal: string;
+      campaignPersonality: string | null;
+      funnels: Array<{
+        actionPageId: string;
+        pitch: string | null;
+        qualificationQuestions: string[];
+      }>;
       topLevelRules: string[];
     };
 
@@ -23,8 +31,16 @@ const responseSchema = z.discriminatedUnion("action", [
     action: z.literal("propose"),
     // Loosened max here — manual check below gives the clear "at most 3" error message
     funnels: z
-      .array(z.object({ action_page_id: z.string().uuid().or(z.string().min(1)) }))
+      .array(z.object({
+        action_page_id: z.string().uuid().or(z.string().min(1)),
+        pitch: z.string().max(1000).nullable().default(null),
+        qualification_questions: z.array(z.string().min(1).max(300)).max(8).default([]),
+      }))
       .min(1),
+    name: z.string().min(1).max(200).optional(),
+    description: z.string().max(1000).optional(),
+    main_goal: z.string().min(1).max(1000),
+    campaign_personality: z.string().max(1000).nullable().default(null),
     top_level_rules: z.array(z.string().min(1).max(300)).max(8).default([]),
   }),
 ]);
@@ -35,16 +51,18 @@ function systemPrompt(pages: AvailablePage[]): string {
     .join("\n");
   return [
     "You design 1-3 step DM funnels for a Messenger sales bot.",
-    "Given a tenant's intent and a list of their existing action pages, propose an ordered funnel of 1-3 pages (the LAST funnel is the conversion step).",
+    "Given a tenant's intent and a list of their existing action pages, propose campaign-level strategy plus an ordered funnel of 1-3 pages (the LAST funnel is the conversion step).",
     "If the intent is too vague, ask ONE clarifying question first. Never ask more than one before proposing.",
     "Use ONLY action_page_ids that appear in the list below. Do not invent IDs.",
+    "Campaign personality is optional. If the tenant describes a specific campaign voice, return it; otherwise return null.",
+    "For each funnel, include a short pitch and 1-3 first qualification questions when useful. The bot will ask these before pushing that funnel's button.",
     "",
     "Available action pages:",
     pageList,
     "",
     "Respond with strict JSON. One of:",
     '{ "action": "question", "question": "..." }',
-    '{ "action": "propose", "funnels": [{"action_page_id":"..."}, ...], "top_level_rules": ["..."] }',
+    '{ "action": "propose", "name": "...", "description": "...", "main_goal": "...", "campaign_personality": null, "funnels": [{"action_page_id":"...", "pitch": "...", "qualification_questions": ["..."]}], "top_level_rules": ["..."] }',
   ].join("\n");
 }
 
@@ -81,7 +99,15 @@ export async function proposeFunnelStructure(input: {
 
   return {
     action: "propose",
-    funnels: parsed.funnels.map((f) => ({ actionPageId: f.action_page_id })),
+    name: parsed.name,
+    description: parsed.description,
+    mainGoal: parsed.main_goal,
+    campaignPersonality: parsed.campaign_personality,
+    funnels: parsed.funnels.map((f) => ({
+      actionPageId: f.action_page_id,
+      pitch: f.pitch,
+      qualificationQuestions: f.qualification_questions,
+    })),
     topLevelRules: parsed.top_level_rules,
   };
 }

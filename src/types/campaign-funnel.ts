@@ -6,6 +6,8 @@ export interface CampaignFunnel {
   position: number;
   actionPageId: string;
   pageDescription: string | null;
+  pitch: string | null;
+  qualificationQuestions: string[];
   chatRules: string[];
   createdAt: string;
   updatedAt: string;
@@ -14,5 +16,7 @@ export interface CampaignFunnel {
 export interface CampaignFunnelInput {
   actionPageId: string;
   pageDescription: string | null;
+  pitch: string | null;
+  qualificationQuestions: string[];
   chatRules: string[];
 }

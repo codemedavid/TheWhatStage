@@ -9,20 +9,16 @@ export interface StepContext {
   tone: string;
   goal: string | null;
   transitionHint: string | null;
-  messageCount: number;
-  maxMessages: number;
   actionButtonIds: string[];
 }
 
-const DEFAULT_MAX_MESSAGES = 8;
-
 const TRANSITION_HINTS: Record<ActionPageType, string> = {
-  sales: "Advance once the lead has shown buying interest and you've sent the sales page.",
-  form: "Advance once the lead is willing to fill the form and you've sent the page.",
-  qualification: "Advance once the lead has answered the first qualifying question.",
-  calendar: "Advance once the lead has agreed to book a call and you've sent the booking page.",
-  product_catalog: "Advance once the lead has indicated a category and you've sent the catalog.",
-  checkout: "Advance once the lead is ready to buy and you've sent the checkout page.",
+  sales: "Send the sales page button as soon as buying interest shows. Advance once they've engaged with it.",
+  form: "Send the form button as soon as they're open to sharing info. Advance once they've engaged with it.",
+  qualification: "Send the qualification button as soon as they're willing to answer. Advance once they've engaged with it.",
+  calendar: "Send the booking button as soon as they're open to a call. Advance once they've engaged with it.",
+  product_catalog: "Send the catalog button as soon as they hint at a category or browsing intent. Advance once they've engaged with it.",
+  checkout: "Send the checkout button as soon as they're ready to buy. Advance once they've engaged with it.",
 };
 
 const GOAL_DIRECTIONS: Record<string, string> = {
@@ -38,19 +34,28 @@ export interface FunnelToStepInput {
   campaign: { goal: string };
   page: { title: string; type: ActionPageType };
   tone: string;
-  messageCount: number;
 }
 
 export function funnelToStep(input: FunnelToStepInput): StepContext {
-  const { funnel, allFunnels, campaign, page, tone, messageCount } = input;
+  const { funnel, allFunnels, campaign, page, tone } = input;
   const position = allFunnels.findIndex((f) => f.id === funnel.id);
   const total = allFunnels.length;
 
   const ruleLines = funnel.chatRules.map((r) => `- ${r}`).join("\n");
+  const pitchBlock = funnel.pitch?.trim()
+    ? `\n\nPitch for this step:\n${funnel.pitch.trim()}`
+    : "";
+  const qualificationBlock =
+    funnel.qualificationQuestions.length > 0
+      ? `\n\nFirst qualification questions:\n${funnel.qualificationQuestions
+          .map((q, i) => `${i + 1}. ${q}`)
+          .join("\n")}\nAsk these naturally, at most one per reply. If the lead already answered one, move to the next open question or the action button.`
+      : "";
   const descBlock = funnel.pageDescription
     ? `\n\nPage context: ${funnel.pageDescription}`
     : "";
-  const instructions = `Chat rules for this step:\n${ruleLines}${descBlock}`;
+  const objective = `Your one job in this step: get the lead to click the "${page.title}" button. Every reply should move toward that click.`;
+  const instructions = `${objective}${pitchBlock}${qualificationBlock}\n\nChat rules for this step:\n${ruleLines}${descBlock}`;
 
   return {
     name: `Step ${position + 1} of ${total} — ${page.title}`,
@@ -60,8 +65,6 @@ export function funnelToStep(input: FunnelToStepInput): StepContext {
     tone,
     goal: GOAL_DIRECTIONS[campaign.goal] ?? null,
     transitionHint: TRANSITION_HINTS[page.type] ?? null,
-    messageCount,
-    maxMessages: DEFAULT_MAX_MESSAGES,
     actionButtonIds: [funnel.actionPageId],
   };
 }

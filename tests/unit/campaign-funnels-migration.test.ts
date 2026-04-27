@@ -18,6 +18,10 @@ describe("0021_campaign_funnels migration", () => {
   it("declares unique (campaign_id, position)", () => {
     expect(sql).toMatch(/unique \(campaign_id, position\)/i);
   });
+  it("stores funnel pitch and qualification questions", () => {
+    expect(sql).toMatch(/pitch\s+text/i);
+    expect(sql).toMatch(/qualification_questions\s+text\[\]\s+not null default '\{\}'/i);
+  });
   it("enables RLS with tenant scoping", () => {
     expect(sql).toMatch(/enable row level security/i);
     expect(sql).toMatch(/current_tenant_id\(\)/);

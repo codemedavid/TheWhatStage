@@ -3,20 +3,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // --- Mocks ---
 vi.mock("@/lib/db/campaign-funnels", () => ({
   listFunnelsForCampaign: vi.fn(async () => [
-    { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, pitch: null, qualificationQuestions: [], chatRules: ["r"], createdAt: "n", updatedAt: "n" },
   ]),
 }));
 vi.mock("@/lib/ai/funnel-runtime", () => ({
   getOrInitFunnelState: vi.fn(async () => ({
-    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, pitch: null, qualificationQuestions: [], chatRules: ["r"], createdAt: "n", updatedAt: "n" },
     position: 0,
     messageCount: 0,
+    buttonSentAtCount: null,
   })),
   advanceFunnel: vi.fn(async () => ({
-    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r"], createdAt: "n", updatedAt: "n" },
+    funnel: { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, pitch: null, qualificationQuestions: [], chatRules: ["r"], createdAt: "n", updatedAt: "n" },
     position: 0, advanced: false, completed: true,
   })),
   incrementFunnelMessageCount: vi.fn(async () => undefined),
+  markFunnelButtonSent: vi.fn(async () => undefined),
 }));
 
 const mockRetrieveKnowledge = vi.fn();

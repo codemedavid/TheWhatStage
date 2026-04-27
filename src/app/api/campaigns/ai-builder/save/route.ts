@@ -10,12 +10,16 @@ import { ACTION_PAGE_TYPES, type ActionPageType } from "@/lib/ai/funnel-template
 const funnelSchema = z.object({
   actionPageId: z.string().min(1),
   pageDescription: z.string().max(2000).nullable(),
+  pitch: z.string().max(1000).nullable().default(null),
+  qualificationQuestions: z.array(z.string().min(1).max(300)).max(8).default([]),
   chatRules: z.array(z.string().min(1).max(500)).min(1).max(20),
 });
 
 const bodySchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).default(""),
+  mainGoal: z.string().max(1000).nullable().default(null),
+  campaignPersonality: z.string().max(1000).nullable().default(null),
   topLevelRules: z.array(z.string().min(1).max(300)).max(10).default([]),
   funnels: z.array(funnelSchema).min(1).max(3),
 });
@@ -84,6 +88,8 @@ export async function POST(req: Request) {
       tenant_id: session.tenantId,
       name: body.name,
       description: body.description,
+      main_goal: body.mainGoal?.trim() || null,
+      campaign_personality: body.campaignPersonality?.trim() || null,
       goal,
       campaign_rules: body.topLevelRules,
       status: "draft",

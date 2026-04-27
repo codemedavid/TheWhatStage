@@ -9,6 +9,7 @@ export interface FunnelState {
   funnel: CampaignFunnel;
   position: number;
   messageCount: number;
+  buttonSentAtCount: number | null;
 }
 
 interface ConversationFunnelRow {
@@ -16,6 +17,7 @@ interface ConversationFunnelRow {
   current_funnel_id: string | null;
   current_funnel_position: number;
   funnel_message_count: number;
+  funnel_button_sent_at_count: number | null;
 }
 
 async function loadConversationRow(
@@ -24,7 +26,7 @@ async function loadConversationRow(
 ): Promise<ConversationFunnelRow> {
   const { data, error } = await service
     .from("conversations")
-    .select("current_campaign_id, current_funnel_id, current_funnel_position, funnel_message_count")
+    .select("current_campaign_id, current_funnel_id, current_funnel_position, funnel_message_count, funnel_button_sent_at_count")
     .eq("id", conversationId)
     .single();
   if (error || !data) {
@@ -50,6 +52,7 @@ export async function getOrInitFunnelState(
       funnel: knownFunnel,
       position: row.current_funnel_position,
       messageCount: row.funnel_message_count,
+      buttonSentAtCount: row.funnel_button_sent_at_count,
     };
   }
 
@@ -61,11 +64,12 @@ export async function getOrInitFunnelState(
       current_funnel_id: first.id,
       current_funnel_position: 0,
       funnel_message_count: 0,
-    })
+      funnel_button_sent_at_count: null,
+    } as never)
     .eq("id", conversationId);
   if (updateError) throw new Error(`Failed to update conversation ${conversationId}: ${updateError.message}`);
 
-  return { funnel: first, position: 0, messageCount: 0 };
+  return { funnel: first, position: 0, messageCount: 0, buttonSentAtCount: null };
 }
 
 export async function advanceFunnel(
@@ -90,23 +94,39 @@ export async function advanceFunnel(
       current_funnel_id: next.id,
       current_funnel_position: currentIndex + 1,
       funnel_message_count: 0,
-    })
+      funnel_button_sent_at_count: null,
+    } as never)
     .eq("id", conversationId);
   if (error) throw new Error(`Failed to update conversation ${conversationId}: ${error.message}`);
 
   return { funnel: next, position: currentIndex + 1, advanced: true, completed: false };
 }
 
+export async function markFunnelButtonSent(
+  service: ServiceClient,
+  conversationId: string,
+  messageCountAtSend: number
+): Promise<void> {
+  const { error } = await service
+    .from("conversations")
+    .update({ funnel_button_sent_at_count: messageCountAtSend } as never)
+    .eq("id", conversationId);
+  if (error) {
+    throw new Error(`Failed to mark funnel button sent for ${conversationId}: ${error.message}`);
+  }
+}
+
 export async function incrementFunnelMessageCount(
   service: ServiceClient,
   conversationId: string
 ): Promise<void> {
-  const row = await loadConversationRow(service, conversationId);
-  const { error } = await service
-    .from("conversations")
-    .update({ funnel_message_count: row.funnel_message_count + 1 })
-    .eq("id", conversationId);
-  if (error) throw new Error(`Failed to update conversation ${conversationId}: ${error.message}`);
+  // Atomic SQL increment via RPC (migration 0024). The previous read-then-write
+  // pattern lost increments when two webhook events for the same lead landed
+  // concurrently.
+  const { error } = await service.rpc("increment_funnel_message_count", {
+    p_conversation_id: conversationId,
+  });
+  if (error) throw new Error(`Failed to increment funnel message count for ${conversationId}: ${error.message}`);
 }
 
 export async function markFunnelCompletedByActionPage(

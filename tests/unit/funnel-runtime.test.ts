@@ -9,8 +9,8 @@ import {
 import type { CampaignFunnel } from "@/types/campaign-funnel";
 
 const funnels: CampaignFunnel[] = [
-  { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, chatRules: ["r0"], createdAt: "n", updatedAt: "n" },
-  { id: "f1", campaignId: "c1", tenantId: "t1", position: 1, actionPageId: "p1", pageDescription: null, chatRules: ["r1"], createdAt: "n", updatedAt: "n" },
+  { id: "f0", campaignId: "c1", tenantId: "t1", position: 0, actionPageId: "p0", pageDescription: null, pitch: null, qualificationQuestions: [], chatRules: ["r0"], createdAt: "n", updatedAt: "n" },
+  { id: "f1", campaignId: "c1", tenantId: "t1", position: 1, actionPageId: "p1", pageDescription: null, pitch: null, qualificationQuestions: [], chatRules: ["r1"], createdAt: "n", updatedAt: "n" },
 ];
 
 function fakeService(initial: Record<string, unknown>) {

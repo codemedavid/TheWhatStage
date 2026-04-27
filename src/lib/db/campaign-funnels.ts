@@ -13,6 +13,8 @@ function toDomain(row: any): CampaignFunnel {
     position: row.position,
     actionPageId: row.action_page_id,
     pageDescription: row.page_description,
+    pitch: row.pitch ?? null,
+    qualificationQuestions: row.qualification_questions ?? [],
     chatRules: row.chat_rules ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -54,6 +56,8 @@ export async function saveFunnelsForCampaign(
     position: i,
     action_page_id: f.actionPageId,
     page_description: f.pageDescription,
+    pitch: f.pitch,
+    qualification_questions: f.qualificationQuestions,
     chat_rules: f.chatRules,
   }));
 

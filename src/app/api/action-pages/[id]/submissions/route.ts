@@ -4,7 +4,13 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { verifyActionPageSignature } from "@/lib/fb/signature";
 import { sendMessage } from "@/lib/fb/send";
 import { normalizeKey } from "@/lib/leads/key-normalizer";
-import type { LeadMapping } from "@/types/database";
+import { listFunnelsForCampaign } from "@/lib/db/campaign-funnels";
+import { markFunnelCompletedByActionPage } from "@/lib/ai/funnel-runtime";
+import type { Json } from "@/types/database";
+
+type LeadMapping =
+  | { target: "lead_contact"; type: "email" | "phone" }
+  | { target: "lead_knowledge"; key: string };
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -47,8 +53,11 @@ export async function POST(request: Request, context: RouteContext) {
     .eq("id", tenantId)
     .single();
 
-  // Verify PSID signature
-  if (!tenant?.fb_app_secret || !verifyActionPageSignature(psid, sig, tenant.fb_app_secret)) {
+  // Verify PSID signature. Tenant secret takes precedence; falls back to the
+  // platform-wide FB_APP_SECRET (mirrors the webhook signer so URLs minted
+  // under the platform secret still verify).
+  const verifySecret = tenant?.fb_app_secret ?? process.env.FB_APP_SECRET ?? null;
+  if (!verifySecret || !verifyActionPageSignature(psid, sig, verifySecret)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
   }
 
@@ -99,7 +108,7 @@ export async function POST(request: Request, context: RouteContext) {
       action_page_id: actionPageId,
       lead_id: lead.id,
       psid,
-      data,
+      data: data as Json,
     })
     .select("id")
     .single();
@@ -154,6 +163,34 @@ export async function POST(request: Request, context: RouteContext) {
       action_page_id: actionPageId,
     },
   });
+
+  // If this action page is the active destination for the lead's current
+  // campaign funnel, completing the page advances the conversation to the next
+  // funnel step. Best-effort: submissions should still succeed if state is stale.
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, current_campaign_id")
+    .eq("tenant_id", tenantId)
+    .eq("lead_id", lead.id)
+    .maybeSingle();
+
+  if (conversation?.id && conversation.current_campaign_id) {
+    try {
+      const funnels = await listFunnelsForCampaign(supabase, conversation.current_campaign_id);
+      await markFunnelCompletedByActionPage(
+        supabase,
+        conversation.id,
+        actionPageId,
+        funnels
+      );
+    } catch (err) {
+      console.warn(
+        `Failed to advance funnel for action page submission ${submission.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
 
   // Send Messenger confirmation (best-effort, don't fail the submission)
   const config = page.config as Record<string, unknown> | null;

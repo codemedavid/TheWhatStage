@@ -63,7 +63,7 @@ export async function POST(request: Request) {
 
       try {
         const fbResponse = await fetch(
-          `https://graph.facebook.com/v18.0/me/messages?access_token=${conv.tenants.fb_page_token}`,
+          `https://graph.facebook.com/v23.0/me/messages?access_token=${conv.tenants.fb_page_token}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

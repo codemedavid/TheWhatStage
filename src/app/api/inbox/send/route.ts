@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { sendMessage } from "@/lib/fb/send";
+import { sendMessage, FacebookUnreachableLeadError, FacebookTokenError } from "@/lib/fb/send";
+import { markLeadUnreachable } from "@/lib/fb/lead-reachability";
 
 const SendSchema = z
   .object({
@@ -100,7 +101,31 @@ export async function POST(req: NextRequest) {
       const result = await sendMessage(lead.psid, { type: "image", url: image_url! }, tenant.fb_page_token);
       messageId = result.messageId;
     }
-  } catch {
+  } catch (err) {
+    if (err instanceof FacebookUnreachableLeadError) {
+      await markLeadUnreachable(service, conversation.lead_id, err);
+      return NextResponse.json(
+        {
+          error: "Lead can't be reached via Messenger.",
+          error_code: "lead_unreachable",
+          reason: err.reason,
+          fb_code: err.fbCode,
+          fb_subcode: err.fbSubcode,
+          hint:
+            err.reason === "outside_messaging_window"
+              ? "The 24-hour standard messaging window has expired. Use a message tag or wait for the lead to message first."
+              : "Your Facebook app likely lacks Advanced Access for `pages_messaging`. Submit for App Review, or add this user as a Tester in the Meta App Dashboard.",
+        },
+        { status: 422 }
+      );
+    }
+    if (err instanceof FacebookTokenError) {
+      return NextResponse.json(
+        { error: "Facebook page token is invalid or expired. Please reconnect the page.", error_code: "page_token_invalid" },
+        { status: 401 }
+      );
+    }
+    console.error("Inbox send: unexpected FB error", err);
     return NextResponse.json({ error: "Failed to send message via Messenger" }, { status: 502 });
   }
 

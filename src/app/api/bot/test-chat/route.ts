@@ -98,6 +98,8 @@ async function autoSeedFunnel(
       position: 0,
       actionPageId: page.id,
       pageDescription: null,
+      pitch: null,
+      qualificationQuestions: [],
       chatRules: defaultRulesForPageType(pageType),
       createdAt: now,
       updatedAt: now,
@@ -169,19 +171,25 @@ export async function POST(request: Request) {
   const currentFunnel = getCurrentFunnel(session);
   if (!currentFunnel) return NextResponse.json({ error: "No active funnel" }, { status: 500 });
 
-  const tenantPromise = service.from("tenants").select("name, persona_tone").eq("id", tenantId).single();
+  const tenantPromise = service.from("tenants").select("name, persona_tone, custom_instructions").eq("id", tenantId).single();
+  const botRulesPromise = service.from("bot_rules").select("rule_text, category, enabled").eq("tenant_id", tenantId);
   const campaignPromise = session.campaignId
-    ? service.from("campaigns").select("name, description, goal, campaign_rules").eq("id", session.campaignId).single()
+    ? service.from("campaigns").select("name, description, goal, main_goal, campaign_personality, campaign_rules").eq("id", session.campaignId).single()
     : Promise.resolve({ data: null });
 
-  const [{ data: tenant }, { data: campaignData }] = await Promise.all([tenantPromise, campaignPromise]);
+  const [{ data: tenant }, { data: campaignData }, { data: botRulesData }] = await Promise.all([tenantPromise, campaignPromise, botRulesPromise]);
   const businessName = (tenant as { name?: string } | null)?.name ?? "Your Business";
   const personaTone = (tenant as { persona_tone?: string } | null)?.persona_tone ?? "friendly";
+  const customInstructions = (tenant as { custom_instructions?: string | null } | null)?.custom_instructions ?? null;
+  const allBotRules = (botRulesData ?? []) as Array<{ rule_text: string; category: string; enabled: boolean }>;
+  const enabledBotRules = allBotRules.filter((r) => r.enabled);
   const campaignContext = campaignData
     ? {
         name: (campaignData as { name: string }).name,
         description: (campaignData as { description: string | null }).description,
         goal: (campaignData as { goal: string }).goal,
+        mainGoal: (campaignData as { main_goal?: string | null }).main_goal ?? null,
+        campaignPersonality: (campaignData as { campaign_personality?: string | null }).campaign_personality ?? null,
         campaignRules: ((campaignData as { campaign_rules: string[] | null }).campaign_rules ?? []) as string[],
       }
     : undefined;
@@ -196,7 +204,6 @@ export async function POST(request: Request) {
     campaign: { goal: campaignContext?.goal ?? "stage_reached" },
     page: { title: currentFunnel.pageTitle, type: currentFunnel.pageType },
     tone: personaTone,
-    messageCount: session.funnelMessageCount,
   });
 
   const systemPrompt = await buildSystemPrompt({
@@ -224,6 +231,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     reply: decision.message,
     confidence: decision.confidence,
+    funnelAction: decision.phaseAction,
     phaseAction: decision.phaseAction,
     funnelAdvanced,
     currentFunnel: {
@@ -232,8 +240,6 @@ export async function POST(request: Request) {
       pageType: after.pageType,
       index: session.currentFunnelIndex,
       total: session.funnels.length,
-      messageCount: session.funnelMessageCount,
-      maxMessages: 8,
     },
     queryTarget: retrieval.queryTarget,
     retrievalPass: retrieval.retrievalPass,
@@ -242,5 +248,16 @@ export async function POST(request: Request) {
       similarity: c.similarity,
       source: (c.metadata?.kb_type as string) ?? "general",
     })),
+    settingsApplied: {
+      persona_tone: personaTone,
+      custom_instructions_chars: customInstructions?.length ?? 0,
+      bot_rules_total: allBotRules.length,
+      bot_rules_enabled: enabledBotRules.length,
+      bot_rules_by_category: enabledBotRules.reduce<Record<string, number>>((acc, r) => {
+        const cat = (r.category ?? "general").toUpperCase();
+        acc[cat] = (acc[cat] ?? 0) + 1;
+        return acc;
+      }, {}),
+    },
   });
 }

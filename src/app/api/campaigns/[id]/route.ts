@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { resolveSession } from "@/lib/auth/session";
 import { z } from "zod";
+import type { Json } from "@/types/database";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(1000).optional(),
+  main_goal: z.string().max(1000).nullable().optional(),
+  campaign_personality: z.string().max(1000).nullable().optional(),
   goal: z.enum(["form_submit", "appointment_booked", "purchase", "stage_reached"]).optional(),
   goal_config: z.record(z.unknown()).optional(),
   is_primary: z.boolean().optional(),
@@ -64,9 +67,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       .eq("is_primary", true);
   }
 
+  const updates = {
+    ...parsed.data,
+    goal_config: parsed.data.goal_config as Json | undefined,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (updates.goal_config === undefined) {
+    delete updates.goal_config;
+  }
+
   const { data: campaign, error } = await service
     .from("campaigns")
-    .update({ ...parsed.data, updated_at: new Date().toISOString() })
+    .update(updates)
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .select("*")

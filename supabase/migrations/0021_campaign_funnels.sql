@@ -6,6 +6,8 @@ create table campaign_funnels (
   position         integer not null,
   action_page_id   uuid not null references action_pages(id) on delete restrict,
   page_description text,
+  pitch            text,
+  qualification_questions text[] not null default '{}',
   chat_rules       text[] not null default '{}',
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),

@@ -53,15 +53,17 @@ export function buildPhasePromptPrompt(
 ): PromptPair {
   return {
     systemPrompt: `You are writing a short briefing for a Messenger chatbot about what it should focus on during one phase of a conversation. This briefing should:
-- Be casual and direct — like briefing a coworker, not programming a robot
-- Focus on the PURPOSE of this phase (what are you trying to achieve?) not step-by-step instructions
+- Be casual and direct — like briefing a closer on your sales team, not programming a robot
+- Focus on the PURPOSE of this phase: what outcome are we moving the lead toward, and what's the next belief or piece of info we need from them?
+- Frame it around the lead's desired result, not internal process. "Get them to see X" beats "ask about Y."
+- Name the most likely friction in this phase (hesitation, confusion, objection) so the bot knows what to watch for and reframe.
 - Be specific to this business — mention real things about what they sell/offer
 - Stay under 100 words. Short and punchy. No fluff.
 - Do NOT include scripted lines, example messages, or "You are..." roleplay instructions
 - Do NOT describe tone or personality (that's handled separately)
 - Do NOT list steps or bullet points of what to say
 
-Think of it as: "Here's what you're doing right now and why." That's it.
+Think of it as: "Here's what you're moving them toward right now, and what's likely to get in the way." That's it.
 
 Return ONLY the briefing text, no JSON wrapping.`,
     userMessage: `Write the phase briefing:
