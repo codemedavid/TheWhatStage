@@ -131,6 +131,7 @@ export type Database = {
         Row: {
           config: Json
           created_at: string
+          cta_text: string | null
           id: string
           published: boolean
           slug: string
@@ -142,6 +143,7 @@ export type Database = {
         Insert: {
           config?: Json
           created_at?: string
+          cta_text?: string | null
           id?: string
           published?: boolean
           slug: string
@@ -153,6 +155,7 @@ export type Database = {
         Update: {
           config?: Json
           created_at?: string
+          cta_text?: string | null
           id?: string
           published?: boolean
           slug?: string
@@ -616,6 +619,7 @@ export type Database = {
           current_funnel_position: number
           escalation_message_id: string | null
           escalation_reason: string | null
+          funnel_button_sent_at_count: number | null
           funnel_message_count: number
           id: string
           last_message_at: string
@@ -630,6 +634,7 @@ export type Database = {
           current_funnel_position?: number
           escalation_message_id?: string | null
           escalation_reason?: string | null
+          funnel_button_sent_at_count?: number | null
           funnel_message_count?: number
           id?: string
           last_message_at?: string
@@ -644,6 +649,7 @@ export type Database = {
           current_funnel_position?: number
           escalation_message_id?: string | null
           escalation_reason?: string | null
+          funnel_button_sent_at_count?: number | null
           funnel_message_count?: number
           id?: string
           last_message_at?: string
@@ -872,7 +878,9 @@ export type Database = {
       knowledge_docs: {
         Row: {
           content: string | null
+          content_hash: string | null
           created_at: string
+          display_order: number
           file_url: string | null
           id: string
           metadata: Json
@@ -883,7 +891,9 @@ export type Database = {
         }
         Insert: {
           content?: string | null
+          content_hash?: string | null
           created_at?: string
+          display_order?: number
           file_url?: string | null
           id?: string
           metadata?: Json
@@ -894,7 +904,9 @@ export type Database = {
         }
         Update: {
           content?: string | null
+          content_hash?: string | null
           created_at?: string
+          display_order?: number
           file_url?: string | null
           id?: string
           metadata?: Json
@@ -1276,6 +1288,8 @@ export type Database = {
           stage_id: string | null
           tags: string[]
           tenant_id: string
+          unreachable_at: string | null
+          unreachable_reason: string | null
         }
         Insert: {
           campaign_id?: string | null
@@ -1291,6 +1305,8 @@ export type Database = {
           stage_id?: string | null
           tags?: string[]
           tenant_id: string
+          unreachable_at?: string | null
+          unreachable_reason?: string | null
         }
         Update: {
           campaign_id?: string | null
@@ -1306,6 +1322,8 @@ export type Database = {
           stage_id?: string | null
           tags?: string[]
           tenant_id?: string
+          unreachable_at?: string | null
+          unreachable_reason?: string | null
         }
         Relationships: [
           {
@@ -1861,6 +1879,10 @@ export type Database = {
           page_id: string
         }[]
       }
+      increment_funnel_message_count: {
+        Args: { p_conversation_id: string }
+        Returns: number
+      }
       match_knowledge_chunks: {
         Args: {
           p_kb_type: string
@@ -1947,6 +1969,8 @@ export type Database = {
         | "appointment_booked"
         | "purchase"
         | "stage_changed"
+        | "send_failed"
+        | "campaign_assigned"
       lead_knowledge_source: "ai_extracted" | "manual" | "form_submit"
       lead_note_type: "agent_note" | "ai_summary"
       order_status: "pending" | "paid" | "fulfilled" | "cancelled"
@@ -2127,6 +2151,8 @@ export const Constants = {
         "appointment_booked",
         "purchase",
         "stage_changed",
+        "send_failed",
+        "campaign_assigned",
       ],
       lead_knowledge_source: ["ai_extracted", "manual", "form_submit"],
       lead_note_type: ["agent_note", "ai_summary"],
@@ -2145,3 +2171,4 @@ export const Constants = {
     },
   },
 } as const
+
