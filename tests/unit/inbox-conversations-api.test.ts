@@ -42,8 +42,13 @@ function setupMembershipChain(membershipResult: unknown) {
 }
 
 function setupConversationsChain(conversationsResult: unknown) {
-  const limit = vi.fn().mockResolvedValue(conversationsResult);
-  const order2 = vi.fn().mockReturnValue({ limit });
+  // Source chain: .eq().order().order().order().limit().limit()
+  // The third .order() and second .limit() use { referencedTable: "messages" }
+  // to sort the latest message inside the joined relation.
+  const limit2 = vi.fn().mockResolvedValue(conversationsResult);
+  const limit1 = vi.fn().mockReturnValue({ limit: limit2 });
+  const order3 = vi.fn().mockReturnValue({ limit: limit1 });
+  const order2 = vi.fn().mockReturnValue({ order: order3 });
   const order1 = vi.fn().mockReturnValue({ order: order2 });
   const eqTenant = vi.fn().mockReturnValue({ order: order1 });
   const selectConvs = vi.fn().mockReturnValue({ eq: eqTenant });
