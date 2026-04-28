@@ -86,14 +86,14 @@ export async function ingestDocument(params: IngestParams): Promise<void> {
       tenant_id: tenantId,
       content: c.content,
       kb_type: kbType,
-      embedding: embeddings[i],
-      language: detectLanguage(c.content) as unknown as string,
+      embedding: embeddings[i] as any,
+      language: detectLanguage(c.content) as any,
       metadata: {
         ...c.metadata,
         doc_title: docTitle,
         source_id: docId,
       },
-    }));
+    })) as any;
 
     const { error: insertError } = await supabase
       .from("knowledge_chunks")
@@ -102,13 +102,13 @@ export async function ingestDocument(params: IngestParams): Promise<void> {
 
     await supabase
       .from("knowledge_docs")
-      .update({ status: "ready", metadata: docMetadata })
+      .update({ status: "ready", metadata: docMetadata as unknown as Record<string, never> })
       .eq("id", docId);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await supabase
       .from("knowledge_docs")
-      .update({ status: "error", metadata: { error: message } })
+      .update({ status: "error", metadata: { error: message } as unknown as Record<string, never> })
       .eq("id", docId);
   }
 }

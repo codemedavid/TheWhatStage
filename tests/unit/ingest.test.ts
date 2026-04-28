@@ -13,6 +13,10 @@ vi.mock("@/lib/ai/processors/xlsx", () => ({
 }));
 vi.mock("@/lib/ai/chunking", () => ({
   chunkText: vi.fn(),
+  chunkFaqAtomic: vi.fn(),
+}));
+vi.mock("@/lib/ai/language-detect", () => ({
+  detectLanguage: vi.fn(() => "en"),
 }));
 vi.mock("@/lib/ai/embedding", () => ({
   embedBatch: vi.fn(),
@@ -58,6 +62,7 @@ describe("ingestDocument", () => {
     docId: "doc-1",
     tenantId: "tenant-1",
     kbType: "general" as const,
+    docTitle: "Test Document",
   };
 
   it("processes a PDF: extract → chunk → embed → store", async () => {
@@ -75,7 +80,7 @@ describe("ingestDocument", () => {
     expect(mockChunk).toHaveBeenCalledWith("PDF content here.");
     expect(mockEmbedBatch).toHaveBeenCalledWith(["PDF content here."]);
     expect(mockInsert).toHaveBeenCalledOnce();
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "ready", metadata: { page_count: 1 } });
+    expect(mockUpdate).toHaveBeenCalledWith({ status: "ready", metadata: { doc_title: "Test Document", page_count: 1 } });
   });
 
   it("processes a DOCX: extract → chunk → embed → store", async () => {
