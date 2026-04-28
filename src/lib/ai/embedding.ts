@@ -1,6 +1,6 @@
 import { InferenceClient } from "@huggingface/inference";
 
-const MODEL = "BAAI/bge-large-en-v1.5";
+const MODEL = "BAAI/bge-m3";
 
 export const EMBEDDING_DIM = 1024;
 

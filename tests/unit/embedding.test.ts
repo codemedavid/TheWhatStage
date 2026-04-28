@@ -25,7 +25,7 @@ describe("embedText", () => {
     expect(result).toHaveLength(EMBEDDING_DIM);
     expect(mockFeatureExtraction).toHaveBeenCalledOnce();
     expect(mockFeatureExtraction).toHaveBeenCalledWith({
-      model: "BAAI/bge-large-en-v1.5",
+      model: "BAAI/bge-m3",
       inputs: "Hello world",
       provider: "hf-inference",
     });
@@ -97,7 +97,7 @@ describe("embedBatch", () => {
     expect(result[2]).toHaveLength(EMBEDDING_DIM);
     expect(mockFeatureExtraction).toHaveBeenCalledOnce();
     expect(mockFeatureExtraction).toHaveBeenCalledWith({
-      model: "BAAI/bge-large-en-v1.5",
+      model: "BAAI/bge-m3",
       inputs: ["one", "two", "three"],
       provider: "hf-inference",
     });
@@ -125,5 +125,34 @@ describe("embedBatch", () => {
     const result = await embedBatch([]);
     expect(result).toEqual([]);
     expect(mockFeatureExtraction).not.toHaveBeenCalled();
+  });
+});
+
+// Live multilingual tests (env-gated, only run with HF_TOKEN)
+// NOTE: These tests are skipped when HF_TOKEN is not set. They are integration tests
+// that require a real HuggingFace API token and real network access. They verify that
+// the embedding model correctly handles multilingual inputs.
+const REAL_EMBEDDING_TESTS = process.env.HF_TOKEN ? describe : describe.skip;
+
+REAL_EMBEDDING_TESTS("embedText (live multilingual)", () => {
+  it("returns a 1024-dim vector for English", async () => {
+    const v = await embedText("how much does this cost");
+    expect(v).toHaveLength(EMBEDDING_DIM);
+  });
+
+  it("returns a 1024-dim vector for Tagalog", async () => {
+    const v = await embedText("magkano po ba ito");
+    expect(v).toHaveLength(EMBEDDING_DIM);
+  });
+
+  it("English and Tagalog 'how much' have cosine similarity > 0.5", async () => {
+    const [a, b] = await Promise.all([
+      embedText("how much does this cost"),
+      embedText("magkano po ba ito"),
+    ]);
+    const dot = a.reduce((s, x, i) => s + x * b[i], 0);
+    const na = Math.sqrt(a.reduce((s, x) => s + x * x, 0));
+    const nb = Math.sqrt(b.reduce((s, x) => s + x * x, 0));
+    expect(dot / (na * nb)).toBeGreaterThan(0.5);
   });
 });
