@@ -45,6 +45,7 @@ export interface PromptContext {
   historyOverride?: { role: "user" | "bot"; text: string }[];
   campaign?: CampaignContext;
   leadId?: string;
+  ragStatus?: "success" | "low_confidence" | "no_results";
 }
 
 interface BotRule {
@@ -353,7 +354,7 @@ function formatChunkLabel(chunk: ChunkResult): string {
 }
 
 // Layer 5 — with anti-hallucination instruction and source labels
-function buildRetrievedKnowledge(chunks: ChunkResult[]): string {
+function buildRetrievedKnowledge(chunks: ChunkResult[], ragStatus?: "success" | "low_confidence" | "no_results"): string {
   const header = "--- RETRIEVED KNOWLEDGE ---";
   if (!chunks || chunks.length === 0) {
     return `${header}\nNo specific knowledge retrieved. If a fact is not present, say you don't know and set confidence < 0.4.`;
@@ -362,15 +363,25 @@ function buildRetrievedKnowledge(chunks: ChunkResult[]): string {
     const label = formatChunkLabel(chunk);
     return `[${i + 1}] ${label} ${chunk.content}`;
   });
-  return [
-    header,
-    ...blocks,
-    "",
-    "USE THESE FACTS:",
-    "- Every concrete fact in your reply (price, feature, hours, location, what-it-does, who-it's-for) MUST come from a chunk above. Quote numbers and names verbatim.",
-    "- Cite the chunk index in cited_chunks (e.g. [1, 3]) for any fact you used.",
-    "- A reply that states a fact NOT present in any chunk is a hard hallucination failure. If the answer is not here, say you don't know and set confidence < 0.4.",
-  ].join("\n");
+
+  const lines: string[] = [header];
+
+  if (ragStatus === "low_confidence") {
+    lines.push("WEAK MATCH — these chunks are the closest available but may not directly answer the lead. Treat as hints, not facts. If they don't contain the exact answer, say you don't know and set confidence < 0.4.");
+  }
+
+  lines.push(...blocks, "", "USE THESE FACTS:");
+
+  if (ragStatus === "low_confidence") {
+    lines.push("- These are weak matches. Quote only if the chunk explicitly contains the fact. If uncertain, say you don't know.");
+  } else {
+    lines.push("- Every concrete fact in your reply (price, feature, hours, location, what-it-does, who-it's-for) MUST come from a chunk above. Quote numbers and names verbatim.");
+  }
+
+  lines.push("- Cite the chunk index in cited_chunks (e.g. [1, 3]) for any fact you used.");
+  lines.push("- A reply that states a fact NOT present in any chunk is a hard hallucination failure. If the answer is not here, say you don't know and set confidence < 0.4.");
+
+  return lines.join("\n");
 }
 
 // Export for tests only
@@ -651,7 +662,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const layer6 = buildStepContext(ctx.step, ctx.testMode ?? false);
   const layer7 = buildConversationHistory(messages);
   const recentPhrasesLayer = buildRecentPhrases(messages);
-  const layer8 = buildRetrievedKnowledge(ctx.ragChunks);
+  const layer8 = buildRetrievedKnowledge(ctx.ragChunks, ctx.ragStatus);
   const layer9 = buildAvailableImages(ctx.images);
   const salesBehavior = [
     "--- SALES BEHAVIOR (silent reasoning, never named or explained) ---",

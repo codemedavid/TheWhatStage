@@ -76,16 +76,19 @@ describe("retrieveKnowledge", () => {
 
   it("merges and deduplicates Pass 1 + Pass 2 results", async () => {
     mockClassify.mockReturnValue("general");
+    // Pass 1: low confidence (0.35 < 0.45 threshold)
     mockSearch.mockResolvedValueOnce([chunk("c1", 0.5), chunk("shared", 0.5)]);
-    mockRerank.mockResolvedValueOnce([chunk("c1", 0.55), chunk("shared", 0.5)]);
+    mockRerank.mockResolvedValueOnce([chunk("c1", 0.35), chunk("shared", 0.3)]);
 
     mockGenerate.mockResolvedValue({ content: "keywords", finishReason: "stop" });
 
+    // Pass 2: high confidence
     mockSearch.mockResolvedValueOnce([chunk("c2", 0.9), chunk("shared", 0.9)]);
     mockRerank.mockResolvedValueOnce([chunk("c2", 0.95), chunk("shared", 0.88)]);
 
     const result = await retrieveKnowledge({ query: "question", tenantId });
 
+    expect(result.retrievalPass).toBe(2);
     const ids = result.chunks.map((c) => c.id);
     const uniqueIds = new Set(ids);
     expect(uniqueIds.size).toBe(ids.length);
@@ -141,6 +144,24 @@ describe("retrieveKnowledge", () => {
         ftsQuery: expect.stringContaining("Primary Offer"),
       })
     );
+  });
+
+  it("returns low_confidence when merged chunks exist but top score < threshold", async () => {
+    mockClassify.mockReturnValue("general");
+    // Pass 1: returns chunks but low confidence
+    mockSearch.mockResolvedValueOnce([chunk("c1", 0.5)]);
+    mockRerank.mockResolvedValueOnce([chunk("c1", 0.35)]);
+
+    // Pass 2: also low confidence
+    mockGenerate.mockResolvedValue({ content: "keywords", finishReason: "stop" });
+    mockSearch.mockResolvedValueOnce([chunk("c2", 0.6)]);
+    mockRerank.mockResolvedValueOnce([chunk("c2", 0.40)]);
+
+    const result = await retrieveKnowledge({ query: "question", tenantId });
+
+    expect(result.status).toBe("low_confidence");
+    expect(result.chunks.length).toBeGreaterThan(0); // Chunks ARE returned
+    expect(result.retrievalPass).toBe(2);
   });
 
   it("returns no_results when both passes return empty", async () => {

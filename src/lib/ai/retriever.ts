@@ -69,13 +69,16 @@ export async function retrieveKnowledge(
     const merged = deduplicateAndSort([...pass1Reranked, ...pass2Reranked]);
 
     if (merged.length > 0) {
-      return { status: "success", chunks: merged, queryTarget, retrievalPass: 2 };
+      // Return with status based on confidence threshold
+      const status: RetrievalResult["status"] =
+        merged[0].similarity >= RERANK_CONFIDENCE_THRESHOLD ? "success" : "low_confidence";
+      return { status, chunks: merged, queryTarget, retrievalPass: 2 };
     }
   }
 
-  const allEmpty = pass1Chunks.length === 0;
+  // Both passes returned zero chunks
   return {
-    status: allEmpty ? "no_results" : "low_confidence",
+    status: "no_results",
     chunks: [],
     queryTarget,
     retrievalPass: 2,

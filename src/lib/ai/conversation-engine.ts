@@ -275,6 +275,7 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
     images: promptImages.length > 0 ? promptImages : undefined,
     campaign: campaignContext,
     leadId,
+    ragStatus: retrieval.status,
   });
 
   // Step 6: Call LLM
