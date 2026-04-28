@@ -341,27 +341,40 @@ function buildConversationHistory(messages: MessageRow[]): string {
   return `${header}\n${formatted.join("\n")}`;
 }
 
+function formatChunkLabel(chunk: ChunkResult): string {
+  const m = chunk.metadata ?? {};
+  const kind = (m.chunk_kind as string) ?? "doc";
+  const title = (m.doc_title as string) ?? "untitled";
+  if (kind === "faq" && typeof m.qa_question === "string" && m.qa_question.trim()) {
+    return `(FAQ · "${title}" → "${m.qa_question}")`;
+  }
+  if (kind === "row") return `(Sheet row · "${title}")`;
+  return `(Doc · "${title}")`;
+}
+
 // Layer 5 — with anti-hallucination instruction and source labels
 function buildRetrievedKnowledge(chunks: ChunkResult[]): string {
   const header = "--- RETRIEVED KNOWLEDGE ---";
   if (!chunks || chunks.length === 0) {
-    return `${header}\nNo specific knowledge retrieved. Answer based on the conversation and your instructions.`;
+    return `${header}\nNo specific knowledge retrieved. If a fact is not present, say you don't know and set confidence < 0.4.`;
   }
   const blocks = chunks.map((chunk, i) => {
-    const source = (chunk.metadata?.kb_type as string) ?? "general";
-    return `[${i + 1}] ${chunk.content} (source: ${source})`;
+    const label = formatChunkLabel(chunk);
+    return `[${i + 1}] ${label} ${chunk.content}`;
   });
   return [
     header,
     ...blocks,
     "",
     "USE THESE FACTS:",
-    "- If a chunk above contains a fact that answers the lead's last message (price, feature, what-it-does, who-it's-for, hours, location), you MUST surface that fact in this reply, paraphrased in the lead's language. Do not bury it for later.",
-    "- Quote concrete facts (numbers, names, specifics) — don't paraphrase them into vague feature soup like 'mas magandang customer experience'.",
-    "- Cite the chunk index in cited_chunks (e.g. [1, 3]) for any fact you use.",
-    "- If the answer is not present in the knowledge base, say you don't know and set confidence below 0.4. Do not invent facts.",
+    "- Every concrete fact in your reply (price, feature, hours, location, what-it-does, who-it's-for) MUST come from a chunk above. Quote numbers and names verbatim.",
+    "- Cite the chunk index in cited_chunks (e.g. [1, 3]) for any fact you used.",
+    "- A reply that states a fact NOT present in any chunk is a hard hallucination failure. If the answer is not here, say you don't know and set confidence < 0.4.",
   ].join("\n");
 }
+
+// Export for tests only
+export const __test__buildRetrievedKnowledge = buildRetrievedKnowledge;
 
 // Layer 6
 function buildAvailableImages(images?: KnowledgeImage[]): string {
