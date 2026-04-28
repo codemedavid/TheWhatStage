@@ -1,0 +1,22 @@
+{
+  "tenantId": "00000000-0000-0000-0000-000000000099",
+  "docs": [
+    {
+      "title": "Pricing FAQ",
+      "type": "faq",
+      "kbType": "general",
+      "faqPairs": [
+        { "question": "How much does the starter package cost?", "answer": "PHP 4,999 per month, all-inclusive." },
+        { "question": "Do you offer refunds?", "answer": "Yes, full refund within 14 days." }
+      ]
+    },
+    {
+      "title": "Pricing FAQ (Tagalog)",
+      "type": "faq",
+      "kbType": "general",
+      "faqPairs": [
+        { "question": "Magkano po yung starter package?", "answer": "PHP 4,999 kada buwan, all-in." }
+      ]
+    }
+  ]
+}
