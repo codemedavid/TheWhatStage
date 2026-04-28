@@ -1,3 +1,5 @@
+import { jsonrepair } from "jsonrepair";
+
 export interface LLMDecision {
   message: string;
   phaseAction: "stay" | "advance" | "escalate";
@@ -15,17 +17,25 @@ const MAX_BUTTON_LABEL_LEN = 20;
 
 const VALID_ACTIONS = new Set(["stay", "advance", "escalate"]);
 
-function extractJson(raw: string): unknown | null {
+function safeParse(raw: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
-    // Continue
+    return JSON.parse(jsonrepair(raw));
+  }
+}
+
+function extractJson(raw: string): unknown | null {
+  try {
+    return safeParse(raw);
+  } catch {
+    // Continue to fence match
   }
 
   const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
   if (fenceMatch) {
     try {
-      return JSON.parse(fenceMatch[1].trim());
+      return safeParse(fenceMatch[1].trim());
     } catch {
       // Continue
     }
@@ -34,7 +44,7 @@ function extractJson(raw: string): unknown | null {
   const braceMatch = raw.match(/\{[\s\S]*\}/);
   if (braceMatch) {
     try {
-      return JSON.parse(braceMatch[0]);
+      return safeParse(braceMatch[0]);
     } catch {
       // Give up
     }
