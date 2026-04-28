@@ -109,3 +109,27 @@ function splitByWords(text: string, maxChars: number, overlapChars: number): str
 
   return chunks;
 }
+
+export interface FaqPair {
+  question: string;
+  answer: string;
+}
+
+export interface AtomicChunk {
+  content: string;
+  metadata: Record<string, unknown>;
+}
+
+export function chunkFaqAtomic(pairs: FaqPair[]): AtomicChunk[] {
+  const chunks: AtomicChunk[] = [];
+  for (const pair of pairs) {
+    const q = pair.question.trim();
+    const a = pair.answer.trim();
+    if (!q && !a) continue;
+    chunks.push({
+      content: `Q: ${q}\nA: ${a}`,
+      metadata: { chunk_kind: "faq", qa_question: q },
+    });
+  }
+  return chunks;
+}
