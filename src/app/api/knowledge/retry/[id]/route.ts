@@ -43,7 +43,7 @@ export async function POST(
   const service = createServiceClient();
   const { data: doc, error: fetchError } = await service
     .from("knowledge_docs")
-    .select("id, type, status")
+    .select("id, type, status, title")
     .eq("id", docId)
     .eq("tenant_id", tenantId)
     .single();
@@ -96,6 +96,7 @@ export async function POST(
       type: parsed.data.type as IngestParams["type"],
       kbType: "general",
       buffer,
+      docTitle: doc.title,
     })
   );
 

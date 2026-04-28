@@ -53,6 +53,7 @@ export async function POST(request: Request) {
       type: "richtext",
       kbType: "general",
       buffer,
+      docTitle: parsed.data.title,
     })
   );
 

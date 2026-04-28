@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       type: parsed.data.type,
       kbType: "general",
       buffer,
+      docTitle: parsed.data.title,
     })
   );
 
