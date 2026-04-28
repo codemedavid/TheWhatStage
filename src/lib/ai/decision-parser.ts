@@ -9,6 +9,7 @@ export interface LLMDecision {
   ctaText: string | null;
   buttonConfidence: number | null;
   buttonLabel: string | null;
+  citedChunks?: number[];
 }
 
 // Meta's hard limit on button title length. Anything longer is rejected by
@@ -79,6 +80,7 @@ export function parseDecision(raw: string): LLMDecision {
       ctaText: null,
       buttonConfidence: null,
       buttonLabel: null,
+      citedChunks: undefined,
     };
   }
 
@@ -126,5 +128,9 @@ export function parseDecision(raw: string): LLMDecision {
       ? obj.button_label.trim().slice(0, MAX_BUTTON_LABEL_LEN)
       : null;
 
-  return { message, phaseAction, confidence, imageIds, actionButtonId, ctaText, buttonConfidence, buttonLabel };
+  const citedChunks = Array.isArray(obj.cited_chunks)
+    ? obj.cited_chunks.filter((idx): idx is number => typeof idx === "number")
+    : undefined;
+
+  return { message, phaseAction, confidence, imageIds, actionButtonId, ctaText, buttonConfidence, buttonLabel, citedChunks };
 }

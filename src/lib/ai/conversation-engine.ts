@@ -284,6 +284,24 @@ export async function handleMessage(input: EngineInput): Promise<EngineOutput> {
   // Step 7: Parse decision
   const decision = parseDecision(llmResponse.content);
 
+  // Step 7a: Log RAG telemetry
+  const citedCount = decision.citedChunks?.length ?? 0;
+  const factsUncitedWarning =
+    retrieval.chunks.length > 0 &&
+    citedCount === 0 &&
+    decision.confidence >= 0.6;
+
+  console.log("[rag-telemetry]", JSON.stringify({
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    retrieval_status: retrieval.status,
+    retrieval_pass: retrieval.retrievalPass,
+    chunks_returned: retrieval.chunks.length,
+    cited_count: citedCount,
+    confidence: decision.confidence,
+    facts_uncited_warning: factsUncitedWarning,
+  }));
+
   // Step 7b: Validate action button selection
   // Each funnel step has exactly one allowed button. LLMs frequently hallucinate
   // a friendly name (e.g. "sign_up") instead of copying the UUID verbatim, so
