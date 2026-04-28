@@ -27,7 +27,7 @@ function safeParse(raw: string): unknown {
 
 function extractJson(raw: string): unknown | null {
   try {
-    return safeParse(raw);
+    return JSON.parse(raw);
   } catch {
     // Continue to fence match
   }
@@ -46,8 +46,16 @@ function extractJson(raw: string): unknown | null {
     try {
       return safeParse(braceMatch[0]);
     } catch {
-      // Give up
+      // Continue to final safeParse fallback
     }
+  }
+
+  // Last resort: try to repair the raw input directly
+  // (e.g., unclosed brackets without fence/brace structure)
+  try {
+    return safeParse(raw);
+  } catch {
+    // Give up
   }
 
   return null;
