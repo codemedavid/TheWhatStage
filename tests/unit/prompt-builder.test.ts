@@ -103,16 +103,14 @@ describe("buildSystemPrompt", () => {
     mockFrom.mockReset();
   });
 
-  it("includes sales strategy guidance without impersonating a sales figure", async () => {
+  it("includes sales behavior guidance without impersonating a sales figure", async () => {
     setupMocks();
 
     const prompt = await buildSystemPrompt(makeContext());
 
-    expect(prompt).toContain("SALES CONVERSATION STRATEGY");
-    expect(prompt).toContain("Use this as hidden reasoning, not as a script");
-    expect(prompt).toContain("Clarify:");
-    expect(prompt).toContain("Sell outcome:");
-    expect(prompt).toContain("Do not force every step");
+    expect(prompt).toContain("SALES BEHAVIOR");
+    expect(prompt).toContain("silent reasoning");
+    expect(prompt).toContain("Sell the outcome");
     expect(prompt.toLowerCase()).not.toContain("act like alex");
   });
 
@@ -149,12 +147,12 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("A coaching program for small businesses");
   });
 
-  it("layer 1 — base persona includes business name", async () => {
+  it("zone A — constitution + voice rules render with persona-shaped voice", async () => {
     setupMocks();
     const prompt = await buildSystemPrompt(makeContext());
-    expect(prompt).toContain("Acme Corp");
+    expect(prompt).toContain("--- CONSTITUTION");
+    expect(prompt).toContain("--- VOICE");
     expect(prompt).toContain("real person");
-    expect(prompt).toContain("conversational");
   });
 
   it("layer 2 — bot rules are rendered by category when present", async () => {
@@ -288,10 +286,10 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("No images available");
   });
 
-  it("layer 7 — response format JSON instructions are present", async () => {
+  it("layer 7 — output contract JSON instructions are present", async () => {
     setupMocks();
     const prompt = await buildSystemPrompt(makeContext());
-    expect(prompt).toContain("RESPONSE FORMAT");
+    expect(prompt).toContain("OUTPUT CONTRACT");
     expect(prompt).toContain('"message"');
     expect(prompt).toContain('"funnel_action"');
     expect(prompt).not.toContain('"phase_action"');
@@ -319,13 +317,17 @@ describe("buildSystemPrompt", () => {
         ],
       })
     );
-    expect(prompt).toContain("Acme Corp");
+    expect(prompt).toContain("--- CONSTITUTION");
+    expect(prompt).toContain("--- MISSION");
+    expect(prompt).toContain("--- VOICE");
     expect(prompt).toContain("BOT RULES");
     expect(prompt).toContain("WHERE YOU ARE IN THE FUNNEL");
     expect(prompt).toContain("CONVERSATION HISTORY");
     expect(prompt).toContain("RETRIEVED KNOWLEDGE");
     expect(prompt).toContain("AVAILABLE IMAGES");
-    expect(prompt).toContain("RESPONSE FORMAT");
+    expect(prompt).toContain("OUTPUT CONTRACT");
+    expect(prompt).toContain("--- CLOSING ANCHOR");
+    expect(prompt).toContain("--- PERSONA ANCHOR");
   });
 
   it("includes campaign rules as Layer 2.5 when provided", async () => {

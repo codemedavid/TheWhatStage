@@ -1,6 +1,17 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import type { StepContext } from "@/lib/ai/step-context";
 import type { ChunkResult } from "@/lib/ai/vector-search";
+import { buildConstitution } from "@/lib/ai/prompt/constitution";
+import { buildVoiceRules } from "@/lib/ai/prompt/voice-rules";
+import {
+  buildCampaignTopAnchor,
+  buildCampaignClosingAnchor,
+  type CampaignAnchorInput,
+  type StepAnchorInput,
+} from "@/lib/ai/prompt/campaign-lock";
+import { buildPersonaAnchor } from "@/lib/ai/prompt/persona-anchor";
+import { wrapUntrusted } from "@/lib/ai/prompt/spotlight";
+import { buildOutputContract } from "@/lib/ai/prompt/output-contract";
 
 const MAX_HISTORY_CHARS = 8000;
 const MAX_HISTORY_MESSAGES = 20;
@@ -44,40 +55,6 @@ interface BotRule {
 interface MessageRow {
   direction: string;
   text: string | null;
-}
-
-// Layer 1
-function buildBasePersona(
-  businessName: string,
-  _personaTone: string,
-  _customInstructions: string | null
-): string {
-  const lines: string[] = [
-    `--- HARD CONVERSATION RULES ---`,
-    `You work at ${businessName} and you're chatting with a real person on Messenger. Two humans, not a script.`,
-    ``,
-    `Conversation shape:`,
-    `- Respond to what they actually said. Tie every reply to specific words/topic from their last message.`,
-    `- Move forward with ONE thing per reply: a sharp question, a small piece of value, or a next step.`,
-    `- 1-2 sentences per message. Match their length. Short message → short reply.`,
-    `- Mirror their language and energy (English → English, Taglish → Taglish, formal → formal, casual → casual).`,
-    `- Read what they MEAN, not just what they said.`,
-    ``,
-    `Hard rules (these are non-negotiable bot-detection failures):`,
-    `- Exactly ONE question per message. Never two. Never "X? Or Y?".`,
-    `- Never start two consecutive replies with the same opener.`,
-    `- Never address the lead with slang nicknames or labels: "osang", "ate", "kuya", "tol", "bes", "pre", "miss", "sir", "ma'am", "boss", "fam", "bro", "sis", "dude". Use their first name sparingly if known, otherwise no label.`,
-    `- No bullet lists or numbered lists in chat replies.`,
-    `- No greeting after the first reply. No "thanks for reaching out". No "how can I help you?".`,
-    `- No AI tells: "certainly", "absolutely", "I'd be happy to", "I totally understand".`,
-    `- Don't repeat what they just said back to them. Don't summarize their history.`,
-    ``,
-    `Selling under the surface:`,
-    `- Lead with the outcome they want, not features.`,
-    `- Handle objections by understanding first, then reframing — never argue or discount.`,
-    `- Every reply should make them feel met, build belief, remove a concern, or invite a next step. Never zero of those.`,
-  ];
-  return lines.join("\n");
 }
 
 function buildTenantDefaultVoice(
@@ -219,32 +196,6 @@ function buildStepContext(step: StepContext, testMode: boolean): string {
     `THE FUNNEL IS THE PLAN, the playbook is HOW you work it. Within the precedence ladder above, every reply moves the lead toward this step's button. Don't introduce topics from a later step on your own. If the lead drags you off-topic, handle their moment in one line, then steer back.`
   );
   return lines.join("\n");
-}
-
-function buildSalesStrategy(): string {
-  return [
-    "--- SALES CONVERSATION STRATEGY ---",
-    "Use this as hidden reasoning, not as a script. Never name it, explain it, or let it sound like a process. The lead should feel a real conversation, not a funnel.",
-    "Clarify: understand why they reached out and what outcome they want.",
-    "Sell outcome: connect the offer to the result they care about, not just features.",
-    "",
-    "Before every reply, silently ask yourself: what does this person actually want, what's stopping them, and what's the smallest next step that moves them closer?",
-    "",
-    "Move through these gears as the conversation earns it — never on a fixed order:",
-    "- Surface the real reason they reached out. Get past the surface ask to the outcome they actually want.",
-    "- Reflect their situation back in one short line that proves you got it. One line, their words, no drama.",
-    "- Find out what they've already tried, what they're comparing against, or what's making this urgent now.",
-    "- Sell the outcome, never the features. Tie what we offer to the specific result they care about.",
-    "- When friction shows up (price, trust, timing, fit, or someone else's approval), name it gently and reframe — don't argue, don't discount, don't flinch.",
-    "- Once they lean in, lock the next step. Make it feel obvious, easy, and already happening.",
-    "",
-    "Rules of the game:",
-    "- Every message must do real work: qualify, build belief, remove a concern, or ask for the next move. No filler turns.",
-    "- If they're cold, warm them. If they're warm, move them. If they're hot, close them. Never miss the moment.",
-    "- Read tone shifts. Hesitation is data — it tells you which concern to surface next.",
-    "- Don't pitch until you understand the gap between where they are and where they want to be. Then the pitch writes itself.",
-    "- Do not force every step. Pick the single next useful move for this exact message.",
-  ].join("\n");
 }
 
 function buildVagueIntentRules(): string {
@@ -489,38 +440,6 @@ function buildOfferingContext(
   return lines.join("\n");
 }
 
-// Layer 8 — with cited_chunks
-function buildDecisionInstructions(): string {
-  return `--- RESPONSE FORMAT ---
-You MUST respond with a JSON object and nothing else. No text before or after the JSON.
-
-{
-  "message": "Your response to the lead (plain text, conversational)",
-  "funnel_action": "stay or advance or escalate",
-  "confidence": 0.0 to 1.0,
-  "image_ids": [],
-  "cited_chunks": [1, 2],
-  "action_button_id": "optional — id of the action button to send, or omit",
-  "button_confidence": 0.0 to 1.0,
-  "button_label": "REQUIRED when action_button_id is set — punchy clickable label, MAX 20 chars",
-  "cta_text": "REQUIRED when action_button_id is set — personalized call-to-action text"
-}
-
-- "funnel_action": "stay" to remain in the current funnel step, "advance" only when the current action is completed or clearly no longer needed, "escalate" if you cannot help.
-- "confidence" anchor table — pick the band that matches your evidence:
-    0.2-0.3 = guessing, no grounding from history or knowledge.
-    0.5    = grounded in history but not in retrieved knowledge.
-    0.7    = grounded in retrieved knowledge AND addresses the lead's specific words.
-    0.9    = lead asked a direct buying question (price/availability/yes) and you are sending the button this turn with a fact-based anchor.
-  ENFORCEMENT: confidence >= 0.7 with funnel_action="stay" AND no action_button_id on a buying-signal turn = a hard failure mode. The engine logs it.
-- "image_ids": Image IDs to send. Empty array if none.
-- "cited_chunks": Indices of the knowledge chunks you used (e.g. [1, 2]).
-- "action_button_id": Include ONLY when you want to send an action button. Omit otherwise.
-- "button_confidence": REQUIRED when action_button_id is set. Your confidence that NOW is the right moment to send the button. Engine drops the button if < 0.65.
-- "button_label": REQUIRED when action_button_id is set. The clickable text ON the button. MAX 20 characters. Action verb + outcome. See action button section for rules.
-- "cta_text": REQUIRED when action_button_id is set. The line ABOVE the button. Personalized to THIS lead's situation, in their language and tone. See the action button section above for the rules — do NOT skip this and do NOT use a generic default.`;
-}
-
 // Layer 5.5 — lead-specific context from contacts, knowledge, and form submissions
 interface LeadContact {
   type: string;
@@ -648,20 +567,26 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     .map((m) => m.text ?? "")
     .join(" \n");
 
-  const layer1 = buildBasePersona(ctx.businessName, personaTone, customInstructions);
+  const tenantCustomInstructionsLayer = customInstructions?.trim()
+    ? `--- TENANT CUSTOM INSTRUCTIONS (constraints, not phrases to copy) ---\n${customInstructions.trim()}`
+    : "";
   const campaignPersonalityLayer = buildCampaignPersonality(ctx.campaign);
   const tenantDefaultVoiceLayer = buildTenantDefaultVoice(personaTone, customInstructions);
   const layer2 = buildBotRules(rules);
   const campaignRulesLayer = buildCampaignPlaybook(ctx.campaign?.campaignRules, botHistoryText);
   const layer3 = buildOfferingContext(businessType, botGoal, ctx.campaign);
-  const layer4 = buildSalesStrategy();
   const layer5 = buildVagueIntentRules();
   const layer6 = buildStepContext(ctx.step, ctx.testMode ?? false);
   const layer7 = buildConversationHistory(messages);
   const recentPhrasesLayer = buildRecentPhrases(messages);
   const layer8 = buildRetrievedKnowledge(ctx.ragChunks);
   const layer9 = buildAvailableImages(ctx.images);
-  const layer10 = buildDecisionInstructions();
+  const salesBehavior = [
+    "--- SALES BEHAVIOR (silent reasoning, never named or explained) ---",
+    "Before each reply, ask yourself: what does this lead want, what's blocking them, what is the smallest next step.",
+    "Sell the outcome, not the feature. Handle objections by reframing — never argue, never discount.",
+    "Pace by lead heat: cold → warm them, warm → move them, hot → close them.",
+  ].join("\n");
 
   // Fetch lead context if leadId is provided
   let leadContextData: LeadContextData = { contacts: [], knowledge: [], submissions: [] };
@@ -730,7 +655,57 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   const actionButtonsLayer = buildAvailableActionButtons(actionButtons);
 
-  return [layer1, campaignPersonalityLayer, tenantDefaultVoiceLayer, layer2, campaignRulesLayer, layer3, layer4, layer5, layer6, layer7, recentPhrasesLayer, layer8, leadLayer, layer9, actionButtonsLayer, layer10]
-    .filter((l) => l.length > 0)
-    .join("\n\n");
+  // Build campaign anchor inputs
+  const stepAnchorInput: StepAnchorInput = {
+    name: ctx.step.name,
+    actionButtonTitle: actionButtons[0]?.title ?? null,
+  };
+  const campaignAnchorInput: CampaignAnchorInput = ctx.campaign
+    ? {
+        name: ctx.campaign.name,
+        goal: ctx.campaign.goal,
+        mainGoal: ctx.campaign.mainGoal ?? null,
+        description: ctx.campaign.description ?? null,
+      }
+    : { name: "default", goal: botGoal, mainGoal: null, description: null };
+
+  // Wrap untrusted layers
+  const wrappedKnowledge = wrapUntrusted("tenant_kb", layer8);
+  const wrappedHistory = wrapUntrusted("messenger_lead", layer7);
+  const wrappedLead = wrapUntrusted("form_submission", leadLayer);
+
+  // ZONE A — IMMUTABLE TOP (cache-stable)
+  const zoneA = [
+    buildConstitution(),
+    buildCampaignTopAnchor(campaignAnchorInput, stepAnchorInput),
+    buildVoiceRules({ tenantPersona: personaTone }),
+  ].join("\n\n");
+
+  // ZONE B — SEMI-STABLE MIDDLE (per-tenant + per-campaign)
+  const zoneB = [
+    tenantCustomInstructionsLayer,
+    campaignPersonalityLayer,
+    tenantDefaultVoiceLayer,
+    layer2,                  // bot rules
+    campaignRulesLayer,      // playbook
+    layer3,                  // offering / mission
+    layer5,                  // buying signals
+    layer6,                  // step context
+    salesBehavior,           // 3-line replacement for buildSalesStrategy
+    actionButtonsLayer,
+  ].filter((s) => s.length > 0).join("\n\n");
+
+  // ZONE C — VOLATILE BOTTOM (per-turn)
+  const zoneC = [
+    wrappedKnowledge,
+    layer9,                  // images
+    wrappedLead,
+    wrappedHistory,
+    recentPhrasesLayer,
+    buildOutputContract(),
+    buildCampaignClosingAnchor(campaignAnchorInput, stepAnchorInput),
+    buildPersonaAnchor(),
+  ].filter((s) => s.length > 0).join("\n\n");
+
+  return [zoneA, zoneB, zoneC].join("\n\n");
 }
