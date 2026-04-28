@@ -3,7 +3,7 @@ import type { ChunkResult } from "@/lib/ai/vector-search";
 
 const MODEL = "BAAI/bge-reranker-v2-m3";
 const RERANKER_TIMEOUT_MS = 8_000;
-const TOP_K = 5;
+const TOP_K = 8;
 
 function getClient(): InferenceClient {
   const token = process.env.HF_TOKEN;
