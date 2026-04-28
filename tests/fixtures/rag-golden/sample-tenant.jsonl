@@ -1,0 +1,3 @@
+{"query":"how much is the starter","expected_fact":"PHP 4,999","language":"en"}
+{"query":"magkano po yung starter","expected_fact":"PHP 4,999","language":"taglish"}
+{"query":"can i get a refund","expected_fact":"14 days","language":"en"}
