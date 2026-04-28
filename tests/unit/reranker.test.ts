@@ -57,15 +57,15 @@ describe("rerankChunks", () => {
     expect(result[2].id).toBe("c1");
   });
 
-  it("returns at most 5 chunks", async () => {
+  it("returns at most 8 chunks", async () => {
     mockTextClassification.mockResolvedValue(
-      Array.from({ length: 8 }, (_, i) => [{ score: i * 0.1 }])
+      Array.from({ length: 10 }, (_, i) => [{ score: i * 0.1 }])
     );
 
-    const chunks = Array.from({ length: 8 }, (_, i) => chunk(`c${i}`, `Chunk ${i}`));
+    const chunks = Array.from({ length: 10 }, (_, i) => chunk(`c${i}`, `Chunk ${i}`));
     const result = await rerankChunks("query", chunks);
 
-    expect(result).toHaveLength(5);
+    expect(result).toHaveLength(8);
   });
 
   it("updates similarity to reranker score", async () => {

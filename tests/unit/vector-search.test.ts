@@ -28,6 +28,7 @@ describe("searchKnowledge", () => {
       tenantId: "tenant-abc",
       kbType: "general",
       topK: 5,
+      language: "tl",
     });
 
     expect(result).toEqual(fakeResults);
@@ -37,10 +38,11 @@ describe("searchKnowledge", () => {
       p_tenant_id: "tenant-abc",
       p_kb_type: "general",
       p_top_k: 5,
+      p_language: "tl",
     });
   });
 
-  it("uses default topK=15", async () => {
+  it("uses default topK=20 and language=null", async () => {
     mockRpc.mockReturnValue({ data: [], error: null });
 
     await searchKnowledge({
@@ -55,7 +57,8 @@ describe("searchKnowledge", () => {
       fts_query: "test query",
       p_tenant_id: "tenant-abc",
       p_kb_type: "product",
-      p_top_k: 15,
+      p_top_k: 20,
+      p_language: null,
     });
   });
 
