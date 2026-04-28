@@ -13,6 +13,7 @@ export interface SearchParams {
   tenantId: string;
   kbType: "general" | "product";
   topK?: number;
+  language?: string | null;
 }
 
 const SIMILARITY_THRESHOLD = 0.45;
@@ -22,7 +23,8 @@ export async function searchKnowledge({
   ftsQuery,
   tenantId,
   kbType,
-  topK = 15,
+  topK = 20,
+  language = null,
 }: SearchParams): Promise<ChunkResult[]> {
   const supabase = createServiceClient();
 
@@ -32,6 +34,7 @@ export async function searchKnowledge({
     p_tenant_id: tenantId,
     p_kb_type: kbType,
     p_top_k: topK,
+    p_language: language,
   });
 
   if (error) {

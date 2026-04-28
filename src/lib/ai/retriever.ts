@@ -3,6 +3,7 @@ import { embedText } from "@/lib/ai/embedding";
 import { searchKnowledge, type ChunkResult } from "@/lib/ai/vector-search";
 import { rerankChunks } from "@/lib/ai/reranker";
 import { generateResponse } from "@/lib/ai/llm-client";
+import { detectLanguage } from "@/lib/ai/language-detect";
 
 const GENERAL_TOP_K = 15;
 const PRODUCT_TOP_K = 15;
@@ -45,8 +46,12 @@ export async function retrieveKnowledge(
   const queryTarget = classifyQuery(query);
   const searchQuery = buildSearchQuery(query, context);
 
+  // Detect language and set language filter for Tagalog-heavy queries
+  const queryLang = detectLanguage(query);
+  const langFilter = queryLang === "tl" ? "tl" : null;
+
   const queryEmbedding = await embedText(searchQuery);
-  const pass1Chunks = await searchTargets(queryEmbedding, searchQuery, tenantId, queryTarget);
+  const pass1Chunks = await searchTargets(queryEmbedding, searchQuery, tenantId, queryTarget, langFilter);
   const pass1Reranked = await rerankChunks(query, pass1Chunks);
 
   if (pass1Reranked.length > 0 && pass1Reranked[0].similarity >= RERANK_CONFIDENCE_THRESHOLD) {
@@ -57,7 +62,7 @@ export async function retrieveKnowledge(
   const expanded = await expandQuery(searchQuery);
   if (expanded) {
     const expandedEmbedding = await embedText(expanded);
-    const pass2Chunks = await searchTargets(expandedEmbedding, expanded, tenantId, queryTarget);
+    const pass2Chunks = await searchTargets(expandedEmbedding, expanded, tenantId, queryTarget, langFilter);
     const pass2Reranked = await rerankChunks(query, pass2Chunks);
 
     // Merge Pass 1 + Pass 2, deduplicate by chunk id, re-sort
@@ -104,12 +109,13 @@ async function searchTargets(
   queryEmbedding: number[],
   ftsQuery: string,
   tenantId: string,
-  target: QueryTarget
+  target: QueryTarget,
+  language: string | null = null
 ): Promise<ChunkResult[]> {
   if (target === "both") {
     const [general, product] = await Promise.all([
-      searchKnowledge({ queryEmbedding, ftsQuery, tenantId, kbType: "general", topK: GENERAL_TOP_K }),
-      searchKnowledge({ queryEmbedding, ftsQuery, tenantId, kbType: "product", topK: PRODUCT_TOP_K }),
+      searchKnowledge({ queryEmbedding, ftsQuery, tenantId, kbType: "general", topK: GENERAL_TOP_K, language }),
+      searchKnowledge({ queryEmbedding, ftsQuery, tenantId, kbType: "product", topK: PRODUCT_TOP_K, language }),
     ]);
     return [...general, ...product];
   }
@@ -120,6 +126,7 @@ async function searchTargets(
     tenantId,
     kbType: target,
     topK: target === "general" ? GENERAL_TOP_K : PRODUCT_TOP_K,
+    language,
   });
 }
 
