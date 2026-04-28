@@ -62,8 +62,8 @@ async function callModel(
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
-      temperature: config?.temperature ?? 0.4,
-      top_p: config?.topP ?? 0.9,
+      temperature: config?.temperature ?? 0.3,
+      top_p: config?.topP ?? 0.75,
       max_tokens: config?.maxTokens ?? 512,
     };
     if ((config?.responseFormat ?? "json_object") === "json_object") {

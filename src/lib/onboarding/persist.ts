@@ -1,6 +1,24 @@
 // src/lib/onboarding/persist.ts
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { GenerationInput, GenerationResults } from "./generation-types";
+import type { GenerationInput, GenerationResults, MainAction } from "./generation-types";
+import { defaultRulesForPageType, type ActionPageType } from "@/lib/ai/funnel-templates";
+
+const MAIN_ACTION_TO_PAGE_TYPE: Record<MainAction, ActionPageType> = {
+  form: "form",
+  appointment: "calendar",
+  purchase: "checkout",
+  sales_page: "sales",
+  call: "calendar",
+};
+
+const ACTION_PAGE_TITLES: Record<ActionPageType, string> = {
+  form: "Lead Capture Form",
+  calendar: "Book a Call",
+  sales: "Sales Page",
+  product_catalog: "Product Catalog",
+  checkout: "Checkout",
+  qualification: "Quick Qualification",
+};
 
 // Note: This persist sequence is not wrapped in a DB transaction (Supabase JS client
 // does not support client-side transactions). If a step fails mid-sequence, partial
@@ -66,7 +84,7 @@ export async function persistResults(
     .single();
   if (campErr) throw new Error(`Campaign creation failed: ${campErr.message}`);
 
-  // 6. Insert campaign phases
+  // 6. Insert campaign phases (kept for legacy metrics/cron compatibility)
   const phaseRows = results.phases!.map((p) => ({
     campaign_id: campaign.id,
     tenant_id: tenantId,
@@ -80,6 +98,40 @@ export async function persistResults(
   }));
   const { error: phaseErr } = await service.from("campaign_phases").insert(phaseRows);
   if (phaseErr) throw new Error(`Phase creation failed: ${phaseErr.message}`);
+
+  // 6b. Seed a default action page + a single campaign_funnel so the live
+  //     conversation engine can run. Without this, listFunnelsForCampaign returns
+  //     empty and the engine pauses every conversation on the first message.
+  const pageType: ActionPageType =
+    MAIN_ACTION_TO_PAGE_TYPE[input.mainAction] ?? "form";
+  const pageTitle = ACTION_PAGE_TITLES[pageType];
+  const pageSlug = `${pageType.replace(/_/g, "-")}-primary`;
+
+  const { data: actionPage, error: pageErr } = await service
+    .from("action_pages")
+    .insert({
+      tenant_id: tenantId,
+      slug: pageSlug,
+      type: pageType,
+      title: pageTitle,
+      config: {},
+      published: false,
+    })
+    .select("id")
+    .single();
+  if (pageErr) throw new Error(`Action page creation failed: ${pageErr.message}`);
+
+  const { error: funnelErr } = await service.from("campaign_funnels").insert({
+    campaign_id: campaign.id,
+    tenant_id: tenantId,
+    position: 0,
+    action_page_id: actionPage.id,
+    page_description: `${pageTitle} for ${input.tenantName}.`,
+    pitch: results.campaign!.description,
+    qualification_questions: [],
+    chat_rules: defaultRulesForPageType(pageType),
+  });
+  if (funnelErr) throw new Error(`Funnel seeding failed: ${funnelErr.message}`);
 
   // 7. Insert knowledge — FAQs
   for (let i = 0; i < (results.faqs?.length ?? 0); i++) {

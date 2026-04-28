@@ -634,6 +634,7 @@ export type Database = {
           funnel_button_sent_at_count: number | null
           funnel_message_count: number
           id: string
+          last_follow_up_at: string | null
           last_message_at: string
           lead_id: string
           needs_human: boolean
@@ -649,6 +650,7 @@ export type Database = {
           funnel_button_sent_at_count?: number | null
           funnel_message_count?: number
           id?: string
+          last_follow_up_at?: string | null
           last_message_at?: string
           lead_id: string
           needs_human?: boolean
@@ -664,6 +666,7 @@ export type Database = {
           funnel_button_sent_at_count?: number | null
           funnel_message_count?: number
           id?: string
+          last_follow_up_at?: string | null
           last_message_at?: string
           lead_id?: string
           needs_human?: boolean

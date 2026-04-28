@@ -139,10 +139,10 @@ describe("buildSystemPrompt", () => {
     );
 
     expect(prompt).toContain("BUYING-SIGNAL TRIGGERS");
-    expect(prompt).toContain("PRICE QUESTION");
+    expect(prompt).toContain("PRICE / COST / RATE / BUDGET QUESTION");
     expect(prompt).toContain("Send the action button THIS SAME turn");
     expect(prompt).toContain("Assume they mean the current offer");
-    expect(prompt).toContain('Do NOT ask "interested in what?"');
+    expect(prompt).toContain("Do NOT ask 'interested in what?'");
     expect(prompt).toContain("Spring Enrollment");
     expect(prompt).toContain("A coaching program for small businesses");
   });
@@ -347,7 +347,7 @@ describe("buildSystemPrompt", () => {
       })
     );
 
-    expect(prompt).toContain("--- CAMPAIGN PLAYBOOK (your hidden checklist) ---");
+    expect(prompt).toContain("--- CAMPAIGN PLAYBOOK (MANDATORY — you cannot skip this) ---");
     expect(prompt).toContain("Always mention the free consultation");
     expect(prompt).toContain("Never discuss pricing until phase 2");
     expect(prompt).toMatch(/\[OPEN\] Always mention the free consultation/);
@@ -418,7 +418,7 @@ describe("buildSystemPrompt", () => {
       })
     );
 
-    expect(prompt).not.toContain("--- CAMPAIGN PLAYBOOK (your hidden checklist) ---");
+    expect(prompt).not.toContain("--- CAMPAIGN PLAYBOOK (MANDATORY — you cannot skip this) ---");
   });
 
   it("step with null goal and transitionHint does not crash", async () => {
